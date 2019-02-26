@@ -18,7 +18,7 @@ install_requires = [x.strip() for x in all_reqs if 'git+' not in x]
 dependency_links = [x.strip().replace('git+', '') for x in all_reqs if x.startswith('git+')]
 
 setup(
-    name='xicam.XPCS    ',
+    name='xicam.XPCS',
     version=__version__,
     description='XPCS GUI interface',
     long_description=long_description,

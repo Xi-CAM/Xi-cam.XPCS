@@ -63,6 +63,7 @@ class XPCS(GUIPlugin):
         # Setup TabViews
         self.rawtabview = TabView(self.headermodel,
                                   widgetcls=XPCSViewerPlugin,
+                                  field='ALS:701:_image1_array_data',
                                   selectionmodel=self.selectionmodel,
                                   bindings=[(self.calibrationsettings.sigGeometryChanged, 'setGeometry')],
                                   geometry=self.getAI)
