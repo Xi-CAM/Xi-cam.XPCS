@@ -14,6 +14,8 @@ from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
 
+from .processing.onetime import OneTimeCorrelation
+
 
 class TwoTimeProcess(ProcessingPlugin):
     ...
@@ -24,7 +26,11 @@ class XPCSWorkflow(Workflow):
 
 
 class OneTime(XPCSWorkflow):
-    ...
+    def __init__(self):
+        super(OneTime, self).__init__(name='One Time Correlation')
+        onetime = OneTimeCorrelation()
+        self.addProcess(onetime)
+
 
 
 class TwoTime(XPCSWorkflow):
@@ -55,22 +61,25 @@ class XPCS(GUIPlugin):
         self.selectionmodel = QItemSelectionModel(self.headermodel)
 
         # Widgets
-        self.calibrationsettings = pluginmanager.getPluginByName('DeviceProfiles', 'SettingsPlugin').plugin_object
+        self.calibrationsettings = pluginmanager.getPluginByName('xicam.SAXS.calibration',
+                                                                 'SettingsPlugin').plugin_object
+        self.plotwidget = pg.PlotWidget()
 
         # Toolbar
         self.toolbar = QToolBar()
+        self.toolbar.addAction('Process', self.process)
 
         # Setup TabViews
         self.rawtabview = TabView(self.headermodel,
                                   widgetcls=XPCSViewerPlugin,
-                                  field='ALS:701:_image1_shaped_image',
                                   selectionmodel=self.selectionmodel,
                                   bindings=[(self.calibrationsettings.sigGeometryChanged, 'setGeometry')],
                                   geometry=self.getAI)
 
         self.stages = {'XPCS': GUILayout(self.rawtabview,
                                          right=self.calibrationsettings.widget,
-                                         top=self.toolbar)}
+                                         top=self.toolbar,
+                                         bottom=self.plotwidget)}
 
         super(XPCS, self).__init__()
 
@@ -84,3 +93,16 @@ class XPCS(GUIPlugin):
 
     def getAI(self):
         return None
+
+    def currentheader(self):
+        return self.headermodel.itemFromIndex(self.selectionmodel.currentIndex()).header
+
+    def process(self):
+        workflow = OneTime()
+        workflow.execute(data=self.currentheader().meta_array(),
+                         labels=self.rawtabview.currentWidget().poly_mask(),
+                         callback_slot=self.show_g2)
+
+    def show_g2(self, result):
+        self.plotwidget.clear()
+        self.plotwidget.plot(result['g2'].value.squeeze())
