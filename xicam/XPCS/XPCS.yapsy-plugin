@@ -1,5 +1,5 @@
 [Core]
-Name = XPCS
+Name = xicam.XPCS
 Module = __init__.py
 
 [Documentation]
