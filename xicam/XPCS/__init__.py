@@ -7,34 +7,19 @@ import pyqtgraph as pg
 from xicam.core import msg
 from xicam.plugins import GUIPlugin, GUILayout, ProcessingPlugin
 from xicam.plugins import manager as pluginmanager
-from xicam.core.execution import Workflow
+
 from xicam.gui.widgets.tabview import TabView
 from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPlugin
 from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
-
-from .processing.onetime import OneTimeCorrelation
-
-
-class TwoTimeProcess(ProcessingPlugin):
-    ...
+from .workflows import OneTime
 
 
-class XPCSWorkflow(Workflow):
-    ...
-
-
-class OneTime(XPCSWorkflow):
-    def __init__(self):
-        super(OneTime, self).__init__(name='One Time Correlation')
-        onetime = OneTimeCorrelation()
-        self.addProcess(onetime)
-
-
-
-class TwoTime(XPCSWorkflow):
-    ...
+# class TwoTimeProcess(ProcessingPlugin):
+#     ...
+#
+#
 
 
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPlugin):
