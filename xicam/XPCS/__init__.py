@@ -13,7 +13,7 @@ from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPlugin
 from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
-from .workflows import OneTime
+from .workflows import OneTime, TwoTime, FourierAutocorrelator
 
 
 # class TwoTimeProcess(ProcessingPlugin):
@@ -32,9 +32,11 @@ class XPCSProcessor(ParameterTree):
 
         self.param = Parameter(children=[{'name': 'Algorithm',
                                           'type': 'list',
-                                          'values': {'1-time correlation': OneTime,
-                                                     '2-time correlation': TwoTime},
-                                          'value': '2-time correlation'}])
+                                          'values': {OneTime.name: OneTime,
+                                                     TwoTime.name: TwoTime,
+                                                     FourierAutocorrelator.name: FourierAutocorrelator},
+                                          'value': FourierAutocorrelator.name}], name='Processor')
+        self.setParameters(self.param, showTop=False)
 
 
 class XPCS(GUIPlugin):
@@ -49,6 +51,7 @@ class XPCS(GUIPlugin):
         self.calibrationsettings = pluginmanager.getPluginByName('xicam.SAXS.calibration',
                                                                  'SettingsPlugin').plugin_object
         self.plotwidget = pg.PlotWidget()
+        self.processor = XPCSProcessor()
 
         # Toolbar
         self.toolbar = QToolBar()
@@ -64,7 +67,8 @@ class XPCS(GUIPlugin):
         self.stages = {'XPCS': GUILayout(self.rawtabview,
                                          right=self.calibrationsettings.widget,
                                          top=self.toolbar,
-                                         bottom=self.plotwidget)}
+                                         bottom=self.plotwidget,
+                                         rightbottom=self.processor)}
 
         super(XPCS, self).__init__()
 
@@ -83,7 +87,7 @@ class XPCS(GUIPlugin):
         return self.headermodel.itemFromIndex(self.selectionmodel.currentIndex()).header
 
     def process(self):
-        workflow = OneTime()
+        workflow = self.processor.param['Algorithm']()
         workflow.execute(data=self.currentheader().meta_array(),
                          labels=self.rawtabview.currentWidget().poly_mask(),
                          callback_slot=self.show_g2)
