@@ -15,6 +15,7 @@ from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from .workflows import OneTime, TwoTime, FourierAutocorrelator
 
+from . import CorrelationPlugin
 
 # class TwoTimeProcess(ProcessingPlugin):
 #     ...
@@ -37,6 +38,36 @@ class XPCSProcessor(ParameterTree):
                                                      FourierAutocorrelator.name: FourierAutocorrelator},
                                           'value': FourierAutocorrelator.name}], name='Processor')
         self.setParameters(self.param, showTop=False)
+
+
+#TODO move this class
+class CorrelationView(QWidget):
+    def __init__(self):
+        super(CorrelationView, self).__init__()
+        self.resultslist = QComboBox()
+        self.plot = QWidget()
+
+        self.headermodel = QStandardItemModel()
+        self.selectionmodel = QItemSelectionModel(self.headermodel)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.resultslist)
+        layout.addWidget(self.plot)
+        self.setLayout(layout)
+
+
+class CorrelationParameters(QWidget):
+    def __init__(self):
+        super(CorrelationParameters, self).__init__()
+        self.parameters = ParameterTree()
+        self.listview = QListView()
+        self.runbutton = QPushButton(text='Correlate')
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.parameters)
+        layout.addWidget(self.listview)
+        layout.addWidget(self.runbutton)
+        self.setLayout(layout)
 
 
 class XPCS(GUIPlugin):
@@ -64,11 +95,20 @@ class XPCS(GUIPlugin):
                                   bindings=[(self.calibrationsettings.sigGeometryChanged, 'setGeometry')],
                                   geometry=self.getAI)
 
-        self.stages = {'XPCS': GUILayout(self.rawtabview,
+        # Setup correlation view
+        self.correlationview = CorrelationView()
+        self.correlationsettings = QLabel('test')
+        self.correlationparameters = CorrelationParameters()
+
+        self.stages = {'Raw(change)': GUILayout(self.rawtabview,
                                          right=self.calibrationsettings.widget,
                                          top=self.toolbar,
-                                         bottom=self.plotwidget,
-                                         rightbottom=self.processor)}
+                                         rightbottom=self.processor),
+                       'Correlate': GUILayout(self.correlationview,
+                                              top=self.toolbar,
+                                              right=self.correlationparameters,
+                                              bottom=self.correlationsettings)
+                       }
 
         super(XPCS, self).__init__()
 
