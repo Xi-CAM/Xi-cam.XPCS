@@ -74,6 +74,8 @@ class CorrelationView(QWidget):
     def appendData(self, data):
         item = QStandardItem(data['name'])
         item.payload = data
+        # Do not add if 'name' already in the model TODO temp
+        if self.model.
         self.model.appendRow(item)
         self.selectionmodel.setCurrentIndex(
             self.model.index(self.model.rowCount() - 1, 0), QItemSelectionModel.Rows)
@@ -116,8 +118,6 @@ class FileSelectionView(QWidget):
         self.filelistview.setSelectionModel(selectionmodel)
         self.filelistview.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.filelistview.setSelectionMode(QAbstractItemView.ExtendedSelection)
-
-        print(f'XPCS selection model: {selectionmodel}\nFileSelectionView: {self.filelistview.selectionModel()}') # DEBUG
 
         # Make sure when the tabview selection model changes, the file list
         # current item updates
@@ -196,16 +196,30 @@ class XPCS(GUIPlugin):
         #     model_indices = self.selectionmodel.selectedIndexes()
         #     return [self.headermodel.itemFromIndex(i).header for i in model_indices]
 
+    def currentheaders(self):
+        selected_indices = self.selectionmodel.selectedIndexes()
+        headers = []
+        for model_index in selected_indices:
+            headers.append(self.headermodel.itemFromIndex(model_index).header)
+        return headers
+
     def process(self):
         workflow = self.processor.param['Algorithm']()
-        # Create start and descriptor before execution
-        # self.correlationdocument = CorrelationDocument(
-        #     self.currentheader(),
-        #     self.fileselectionview.correlationname.text()
-        # )
-        workflow.execute(data=self.currentheader().meta_array(),
-                         labels=self.rawtabview.currentWidget().poly_mask(),
-                         callback_slot=self.show_g2)
+        for header in self.currentheaders():
+
+            #             # Create start and descriptor before execution
+            #             # self.correlationdocument = CorrelationDocument(
+            #             #     self.currentheader(),
+            #             #     self.fileselectionview.correlationname.text()
+            #             # )
+
+            workflow.execute(data=header.meta_array(),
+                             labels=self.rawtabview.currentWidget().poly_mask(),
+                             callback_slot=self.show_g2)
+
+        # workflow.execute(data=self.currentheader().meta_array(),
+        #                  labels=self.rawtabview.currentWidget().poly_mask(),
+        #                  callback_slot=self.show_g2)
         # workflow = self.processor.param['Algorithm']()
         # data = self.currentheader()[0].meta_array()
         # if len(self.currentheader()) > 1:
@@ -215,11 +229,12 @@ class XPCS(GUIPlugin):
         #                  callback_slot=self.show_g2)
 
     def show_g2(self, result):
-        data = {}
+        data = {} # TODO -- temp { 'name': Uniqueresultname, 'result': result
         if not self.fileselectionview.correlationname.displayText():
             data['name'] = self.fileselectionview.correlationname.placeholderText()
         else:
             data['name'] = self.fileselectionview.correlationname.displayText()
+
         data['result'] = result
 
         try:

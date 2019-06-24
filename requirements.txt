@@ -7,4 +7,5 @@ pypi-publisher
 scipy
 scikit-image
 xicam.SAXS
+event-model
 
