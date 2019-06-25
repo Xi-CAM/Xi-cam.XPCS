@@ -8,11 +8,11 @@ class XPCSWorkflow(Workflow):
 
 
 class TwoTime(XPCSWorkflow):
-    name = '1-Time Correlation'
+    name = '2-Time Correlation'
 
 
 class OneTime(XPCSWorkflow):
-    name = '2-Time Correlation'
+    name = '1-Time Correlation'
     def __init__(self):
         super(OneTime, self).__init__()
         onetime = OneTimeCorrelation()
