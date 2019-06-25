@@ -67,28 +67,18 @@ class CorrelationView(QWidget):
 
     def updatePlot(self, current, previous):
         self.correlationplot.clear()
-        results = self.model.itemFromIndex(current).payload['result']
-        # for result in results:
-        #     self.correlationplot.plot(
-        #         result['g2'].value.squeeze())F
-        self.correlationplot.getPlotItem().setLabel('left', 'g<sub>2</sub>(&tau;)')
-        self.correlationplot.getPlotItem().setLabel('bottom', '&tau;')
-        self.correlationplot.plot(results['g2'].value.squeeze())
+        self.correlationplot.plot(
+            self.model.itemFromIndex(current).payload['result']['g2'].value.squeeze())
         self.resultslist.setCurrentIndex(current.row()) # why doesn't model/view do this for us?
 
     def appendData(self, data):
         item = QStandardItem(data['name'])
         item.payload = data
         # Do not add if 'name' already in the model TODO temp
-        # if self.model.
         self.model.appendRow(item)
         self.selectionmodel.setCurrentIndex(
             self.model.index(self.model.rowCount() - 1, 0), QItemSelectionModel.Rows)
         self.model.dataChanged.emit(QModelIndex(), QModelIndex())
-
-    # def updateViews(self, topleft, bottomright):
-    #     self.selectionmodel.currentIndex()
-
 
 
 class FileSelectionView(QWidget):
@@ -210,35 +200,13 @@ class XPCS(GUIPlugin):
 
     def process(self):
         workflow = self.processor.param['Algorithm']()
+
         data = [header.meta_array() for header in self.currentheaders()]
-        labels = self.rawtabview.currentWidget().poly_mask()
-        labels = [labels] * len(data)
+        labels = [self.rawtabview.currentWidget().poly_mask()] * len(data)
         workflow.execute_all(None,
                              data=data,
                              labels=labels,
                              callback_slot=self.show_g2)
-        # for header in self.currentheaders():
-        #
-        #     #             # Create start and descriptor before execution
-        #     #             # self.correlationdocument = CorrelationDocument(
-        #     #             #     self.currentheader(),
-        #     #             #     self.fileselectionview.correlationname.text()
-        #     #             # )
-        #
-        #     workflow.execute(data=header.meta_array(),
-        #                      labels=self.rawtabview.currentWidget().poly_mask(),
-        #                      callback_slot=self.show_g2)
-
-        # workflow.execute(data=self.currentheader().meta_array(),
-        #                  labels=self.rawtabview.currentWidget().poly_mask(),
-        #                  callback_slot=self.show_g2)
-        # workflow = self.processor.param['Algorithm']()
-        # data = self.currentheader()[0].meta_array()
-        # if len(self.currentheader()) > 1:
-        #     data = np.array([self.currentheader()[i].meta_array() for i in self.currentheader()])
-        # workflow.execute(data=data,
-        #                  labels=self.rawtabview.currentWidget().poly_mask(),
-        #                  callback_slot=self.show_g2)
 
     def show_g2(self, result):
         data = {} # TODO -- temp { 'name': Uniqueresultname, 'result': result
@@ -247,9 +215,6 @@ class XPCS(GUIPlugin):
         else:
             data['name'] = self.fileselectionview.correlationname.displayText()
 
-        # data['result'] = []
-        # for data in result:
-        #     data['result'] += data
         data['result'] = result
 
         try:
