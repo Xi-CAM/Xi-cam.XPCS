@@ -9,7 +9,7 @@ from xicam.plugins import GUIPlugin, GUILayout, ProcessingPlugin
 from xicam.plugins import manager as pluginmanager
 
 from xicam.gui.widgets.tabview import TabView
-from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPlugin
+from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSReductionViewer
 from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
@@ -22,7 +22,7 @@ from .workflows import OneTime, TwoTime, FourierAutocorrelator
 #
 
 
-class XPCSViewerPlugin(PolygonROI, SAXSViewerPlugin):
+class XPCSViewerPlugin(PolygonROI, SAXSReductionViewer):
     pass
 
 
