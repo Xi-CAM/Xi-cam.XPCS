@@ -14,6 +14,7 @@ from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from .workflows import OneTime, TwoTime, FourierAutocorrelator
+from .widgets.onetimeplot import OneTimePlotWidget
 
 
 # class TwoTimeProcess(ProcessingPlugin):
@@ -50,7 +51,7 @@ class XPCS(GUIPlugin):
         # Widgets
         self.calibrationsettings = pluginmanager.getPluginByName('xicam.SAXS.calibration',
                                                                  'SettingsPlugin').plugin_object
-        self.plotwidget = pg.PlotWidget()
+        self.plotwidget = OneTimePlotWidget()
         self.processor = XPCSProcessor()
 
         # Toolbar
