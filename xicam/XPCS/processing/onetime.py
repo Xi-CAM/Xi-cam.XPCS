@@ -21,5 +21,5 @@ class OneTimeCorrelation(ProcessingPlugin):
         self.g2.value, lag_steps = corr.multi_tau_auto_corr(self.num_levels.value,
                                                             self.num_bufs.value,
                                                             self.labels.value.astype(np.int),
-                                                            np.array(self.data.value).astype(np.int))
+                                                            np.array(self.data.value))
         # seems to only work with ints
