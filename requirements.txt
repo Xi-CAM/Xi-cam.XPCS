@@ -8,4 +8,5 @@ scipy
 scikit-image
 xicam.SAXS
 event-model
+intake_bluesky
 

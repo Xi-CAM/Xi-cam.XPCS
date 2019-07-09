@@ -18,6 +18,7 @@ from pyqtgraph.parametertree import ParameterTree, Parameter
 from .workflows import OneTime, TwoTime, FourierAutocorrelator
 
 # from . import CorrelationPlugin
+import time
 
 # class TwoTimeProcess(ProcessingPlugin):
 #     ...
@@ -27,6 +28,7 @@ from .workflows import OneTime, TwoTime, FourierAutocorrelator
 import numpy as np # TODO -- this is for debugging
 from .CorrelationDocument import CorrelationDocument
 import event_model
+from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
     pass
@@ -136,8 +138,9 @@ class CorrelationView(QWidget):
     def results(self, selection: QItemSelection, dataKey):
         results = []
         for index in selection.indexes():
-            for result in self.model.itemFromIndex(index).header.data(dataKey):
-                results.append(result)
+            # for result in self.model.itemFromIndex(index).header['data'][dataKey]:
+            #     results.append(result)
+            results.append(self.model.itemFromIndex(index).header['data'][dataKey].value)
         return results
 
     def updatePlot(self, selected, deselected):
@@ -231,10 +234,6 @@ class XPCS(GUIPlugin):
         self.calibrationsettings = pluginmanager.getPluginByName('xicam.SAXS.calibration',
                                                                  'SettingsPlugin').plugin_object
 
-        # Toolbar
-        # self.toolbar = QToolBar()
-        # self.toolbar.addAction('Process', self.process)
-
         # Setup TabViews
         self.rawtabview = TabView(self.headermodel,
                                   widgetcls=XPCSViewerPlugin,
@@ -273,7 +272,8 @@ class XPCS(GUIPlugin):
 
         # TODO -- should CorrelationDocument be a member?
         self.correlationdocument = None
-        repr(self.correlationdocument)
+
+        self.__data = []
 
         super(XPCS, self).__init__()
 
@@ -297,24 +297,6 @@ class XPCS(GUIPlugin):
         for model_index in selected_indices:
             headers.append(self.headermodel.itemFromIndex(model_index).header)
         return headers
-
-    def addResults(self, data):
-        # self.correlationdocument.setShape('g2', data['result']['g2'].value.shape)
-        # self.correlationdocument.createDescriptor()
-        self.correlationdocument.createEvent(name=data['name'], image_series=data['name'], g2=data['result']['g2'].value)
-        item = QStandardItem(data['name']) # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-        item.header = self.correlationdocument
-        resultsmodel = self.currentModel()
-        resultsmodel.appendRow(item)
-        deselected = self.currentSelectionModel().selection()
-        self.currentSelectionModel().setCurrentIndex(
-            resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
-        self.currentSelectionModel().selectionChanged.emit(self.currentSelectionModel().selection(), deselected)
-        # self.selectionmodel.setCurrentIndex(
-        #     self.model.index(self.model.rowCount() - 1, 0), QItemSelectionModel.Rows)
-        resultsmodel.dataChanged.emit(QModelIndex(), QModelIndex())
-        # self.correlationdocument.createStop()
-        print()
 
     # TODO better way to do this (sig, slot)
     def currentProcessor(self):
@@ -369,51 +351,71 @@ class XPCS(GUIPlugin):
                                  labels=labels,
                                  num_levels=num_levels,
                                  num_bufs=num_bufs,
-                                 callback_slot=self.show_g2,
-                                 #callback_slot=self.show_g2,
-                                 finished_slot=self.finished_slot)
+                                 callback_slot=self.saveResult,
+                                 finished_slot=self.createDocument)
 
             # To use createDocument() function instead of class, use callback_slot to collect the results,
             # then use finished_slot to call createDocument(results) to create a document with multiple events
             # (i.e. multiple items selected)
 
-    def finished_slot(self):
-        self.correlationdocument.createStop()
+    def createDocument(self):
+        # self.correlationdocument.createEvent(name=data['name'], image_series=data['name'],
+        #                                      g2=data['result']['g2'].value)
+        # TODO Move catalog outside of this method
+        catalog = BlueskyInMemoryCatalog()
+        catalog.upsert(_createDocument, (self.__data,), {})
+        key = list(catalog)[0]
+
+        for name, doc in catalog[key].read_canonical():
+            if name == 'event':
+                item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
+                item.header = doc
+                resultsmodel = self.currentModel()
+                resultsmodel.appendRow(item)
+                deselected = self.currentSelectionModel().selection()
+                self.currentSelectionModel().setCurrentIndex(
+                    resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
+                self.currentSelectionModel().selectionChanged.emit(self.currentSelectionModel().selection(), deselected)
+                resultsmodel.dataChanged.emit(QModelIndex(), QModelIndex())
+
+        self.__data = []
+        print()
         print()
 
-    def show_g2(self, result):
+    def saveResult(self, result):
         print(result)
         print(result['g2'].value)
-        data = dict()
         fileselectionview = self.currentFileSelectionView()
-        # TODO -- handle unique name - (data['name']) will be same regardless what image(s) are selected
+        data = dict()
         if not fileselectionview.correlationname.displayText():
             data['name'] = fileselectionview.correlationname.placeholderText()
         else:
             data['name'] = fileselectionview.correlationname.displayText()
-
         data['result'] = result
+
         print(data['name'])
-
-        try:
-            self.addResults(data)
-            # self.correlationdocument.createStop()
-            # if only a single image was selected, the value is 0 length.
-            # self.correlationview.plotwidget.plot(result['g2'].value.squeeze())
-
-            # Temporary -- just populating the combobox w/out model
-            # self.correlationview.resultslist.addItem(
-            #     self.currentheader().startdoc['sample_name'])
-        except TypeError:
-            # occurs when only 1 image is selected and then 'process' is clicked
-            # i.e. not a series of images
-            # TODO -- how to handle selection of non-series items?
-            QMessageBox.warning(QApplication.activeWindow(),
-                                'Only one image selected',
-                                'Please select more than one image')
-        # add event and stop to the correlation document
-        # TODO -- do we need the document? Why not just add to a model?
-        # self.correlationdocument.add()
+        self.__data.append(data)
 
 
+def _createDocument(results):
+    timestamp = time.time()
 
+    run_bundle = event_model.compose_run()
+    yield 'start', run_bundle.start_doc
+
+    data_keys = {'image_series': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []},
+                 'g2': {'source': 'Xi-cam XPCS', 'dtype': 'number', 'shape': [],},
+                 'name': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []}
+                 }
+    stream_bundle = run_bundle.compose_descriptor(data_keys=data_keys, name='primary')
+    yield 'descriptor', stream_bundle.descriptor_doc
+
+    for result in results:
+        yield 'event', stream_bundle.compose_event(data={'image_series': result['name'],
+                                                         'g2': result['result']['g2'],
+                                                         'name': result['name']},
+                                                   timestamps={'image_series': timestamp,
+                                                               'g2': timestamp,
+                                                               'name': timestamp})
+
+    yield 'stop', run_bundle.compose_stop()
