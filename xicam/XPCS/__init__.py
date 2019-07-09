@@ -145,7 +145,10 @@ class CorrelationView(QWidget):
         # items exist in the plot widget, which is good though)
         self.plot.clear()
         for result in self.results(selected, 'g2'):
-            self.plot.plot(result.squeeze())
+            yData = result.squeeze()
+            # Offset x axis by 1 to avoid log10(0) runtime error at PlotDataItem.py:531
+            xData = np.arange(1, len(yData) + 1)
+            self.plot.plot(x=xData, y=yData)
         self.resultslist.setCurrentIndex(0)#selected.indexes()[:-1].row())
 
 
@@ -353,9 +356,19 @@ class XPCS(GUIPlugin):
 
             data = [header.meta_array() for header in self.currentheaders()]
             labels = [self.rawtabview.currentWidget().poly_mask()] * len(data)
+            num_levels = [1] * len(data)
+            num_bufs = []
+            for i, _ in enumerate(data):
+                shape = data[i].shape[0]
+                # multi_tau_corr requires num_bufs be even
+                if shape % 2:
+                    shape += 1
+                num_bufs.append(shape)
             workflow.execute_all(None,
                                  data=data,
                                  labels=labels,
+                                 num_levels=num_levels,
+                                 num_bufs=num_bufs,
                                  callback_slot=self.show_g2,
                                  #callback_slot=self.show_g2,
                                  finished_slot=self.finished_slot)
