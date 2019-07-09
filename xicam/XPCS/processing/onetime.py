@@ -10,10 +10,12 @@ class OneTimeCorrelation(ProcessingPlugin):
         Each ROI is represented by sequential integers starting at one.  For
         example, if you have four ROIs, they must be labeled 1, 2, 3,
         4. Background is labeled as 0""", type=np.array)
+    # Set to num_levels to 1 if multi-tau correlation isn't desired,
+    # then set num_bufs to number of images you wish to correlate
     num_levels = Input(description="""how many generations of downsampling to perform, i.e., the depth of
-        the binomial tree of averaged frames""", type=int, default=7)
+        the binomial tree of averaged frames""", type=int, default=1)
     num_bufs = Input(description="""must be even
-        maximum lag step to compute in each generation of downsampling""", type=int, default=8)
+        maximum lag step to compute in each generation of downsampling""", type=int, default=1000)
 
     g2 = Output(description="""the normalized correlation shape is (len(lag_steps), num_rois)""", type=np.array)
 
@@ -23,3 +25,4 @@ class OneTimeCorrelation(ProcessingPlugin):
                                                             self.labels.value.astype(np.int),
                                                             np.array(self.data.value))
         # seems to only work with ints
+        print()
