@@ -25,8 +25,8 @@ from .workflows import OneTime, TwoTime, FourierAutocorrelator
 #
 
 import numpy as np # TODO -- this is for debugging
-# from . import CorrelationDocument
-
+from .CorrelationDocument import CorrelationDocument
+import event_model
 
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
     pass
@@ -127,40 +127,29 @@ class CorrelationView(QWidget):
         layout.addWidget(self.plot)
         self.setLayout(layout)
 
-        self.selectionmodel.currentChanged.connect(self.updatePlot)
+        # Update plot figure whenever selected result changes
+        # self.selectionmodel.currentChanged.connect(self.updatePlot)
+        self.selectionmodel.selectionChanged.connect(self.updatePlot)
+    # def results(self, modelIndex, dataKey):
+    #     return self.model.itemFromIndex(modelIndex).header.data(dataKey)
 
-    # TODO TEMP method
-    def getResults(self, current):
-        return self.model.itemFromIndex(current).payload['result']['g2'].value.squeeze()
+    def results(self, selection: QItemSelection, dataKey):
+        results = []
+        for index in selection.indexes():
+            for result in self.model.itemFromIndex(index).header.data(dataKey):
+                results.append(result)
+        return results
 
-    def updatePlot(self, current, previous):
+    def updatePlot(self, selected, deselected):
+        # TODO -- when multiple items selected to process, 2 items are added to the plot combo box (2 plot
+        # items exist in the plot widget, which is good though)
         self.plot.clear()
-        self.plot.plot(self.getResults(current))
-        # # TODO temp
-        # from matplotlib import pyplot as plt
-        # plt.figure('current results')
-        # plt.plot(self.getResults(current))
-        # plt.xscale('log')
-        # plt.show()
-        # # TODO end
-        self.resultslist.setCurrentIndex(current.row()) # why doesn't model/view do this for us?
-
-    def appendData(self, data):
-        item = QStandardItem(data['name'])
-        item.payload = data
-        # Do not add if 'name' already in the model TODO temp
-        self.model.appendRow(item)
-        self.selectionmodel.setCurrentIndex(
-            self.model.index(self.model.rowCount() - 1, 0), QItemSelectionModel.Rows)
-        self.model.dataChanged.emit(QModelIndex(), QModelIndex())
-
-    def setLabels(self, left, bottom):
-        self.plot.getPlotItem().setLabel('left', left)
-        self.plot.getPlotItem().setLabel('bottom', bottom)
+        for result in self.results(selected, 'g2'):
+            self.plot.plot(result.squeeze())
+        self.resultslist.setCurrentIndex(0)#selected.indexes()[:-1].row())
 
 
 class OneTimeView(CorrelationView):
-
     def __init__(self):
         self.model = QStandardItemModel()
         super(OneTimeView, self).__init__(self.model)
@@ -171,7 +160,6 @@ class OneTimeView(CorrelationView):
 
 
 class TwoTimeView(CorrelationView):
-
     def __init__(self):
         self.model = QStandardItemModel()
         super(TwoTimeView, self).__init__(self.model)
@@ -201,7 +189,6 @@ class FileSelectionView(QWidget):
         self.correlationname.setPlaceholderText('Name of result')
 
         layout = QVBoxLayout()
-        # layout.addWidget(self.parameters)
         layout.addWidget(self.filelistview)
         layout.addWidget(self.correlationname)
         self.setLayout(layout)
@@ -216,11 +203,13 @@ class FileSelectionView(QWidget):
         # Make sure when the tabview selection model changes, the file list
         # current item updates
         self.selectionmodel.currentChanged.connect(
-            lambda current, _: self.filelistview.setCurrentIndex(current)
+            lambda current, _:
+                self.filelistview.setCurrentIndex(current)
         )
 
         self.selectionmodel.currentChanged.connect(
-            lambda current, _: self.correlationname.setPlaceholderText(current.data())
+            lambda current, _:
+                self.correlationname.setPlaceholderText(current.data())
         )
 
 
@@ -240,8 +229,8 @@ class XPCS(GUIPlugin):
                                                                  'SettingsPlugin').plugin_object
 
         # Toolbar
-        self.toolbar = QToolBar()
-        self.toolbar.addAction('Process', self.process)
+        # self.toolbar = QToolBar()
+        # self.toolbar.addAction('Process', self.process)
 
         # Setup TabViews
         self.rawtabview = TabView(self.headermodel,
@@ -250,27 +239,30 @@ class XPCS(GUIPlugin):
                                   bindings=[(self.calibrationsettings.sigGeometryChanged, 'setGeometry')],
                                   geometry=self.getAI)
 
-        # Setup correlation view
-        # self.correlationview = CorrelationView()
+        # Setup correlation views
         self.twotimeview = TwoTimeView()
+        self.twotimefileselection = FileSelectionView(self.headermodel, self.selectionmodel)
+        self.twotimeprocessor = TwoTimeProcessor()
+        self.twotimetoolbar = QToolBar()
+        self.twotimetoolbar.addAction('Process', self.process)
         self.onetimeview = OneTimeView()
         self.onetimefileselection = FileSelectionView(self.headermodel, self.selectionmodel)
-        self.twotimefileselection = FileSelectionView(self.headermodel, self.selectionmodel)
         self.onetimeprocessor = OneTimeProcessor()
-        self.twotimeprocessor = TwoTimeProcessor()
-        # self.processor = XPCSProcessor()
+        self.onetimetoolbar = QToolBar()
+        self.onetimetoolbar.addAction('Process', self.process)
+
         self.placeholder = QLabel('correlation parameters')
 
-        self.stages = {'Raw(change)': GUILayout(self.rawtabview,
-                                                # top=self.toolbar,
-                                                right=self.calibrationsettings.widget),
+        self.stages = {'Raw': GUILayout(self.rawtabview,
+                                        # top=self.toolbar,
+                                        right=self.calibrationsettings.widget),
                        '2-Time Correlation': GUILayout(self.twotimeview,
-                                                       top=self.toolbar,
+                                                       top=self.twotimetoolbar,
                                                        right=self.twotimefileselection,
                                                        rightbottom=self.twotimeprocessor,
                                                        bottom=self.placeholder),
                        '1-Time Correlation': GUILayout(self.onetimeview,
-                                                       top=self.toolbar,
+                                                       top=self.onetimetoolbar,
                                                        right=self.onetimefileselection,
                                                        rightbottom=self.onetimeprocessor,
                                                        bottom=self.placeholder)
@@ -278,6 +270,7 @@ class XPCS(GUIPlugin):
 
         # TODO -- should CorrelationDocument be a member?
         self.correlationdocument = None
+        repr(self.correlationdocument)
 
         super(XPCS, self).__init__()
 
@@ -303,16 +296,22 @@ class XPCS(GUIPlugin):
         return headers
 
     def addResults(self, data):
-        item = QStandardItem(data['name'])
-        item.payload = data
-        # Do not add if 'name' already in the model TODO temp
+        # self.correlationdocument.setShape('g2', data['result']['g2'].value.shape)
+        # self.correlationdocument.createDescriptor()
+        self.correlationdocument.createEvent(name=data['name'], image_series=data['name'], g2=data['result']['g2'].value)
+        item = QStandardItem(data['name']) # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
+        item.header = self.correlationdocument
         resultsmodel = self.currentModel()
         resultsmodel.appendRow(item)
+        deselected = self.currentSelectionModel().selection()
         self.currentSelectionModel().setCurrentIndex(
             resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
+        self.currentSelectionModel().selectionChanged.emit(self.currentSelectionModel().selection(), deselected)
         # self.selectionmodel.setCurrentIndex(
         #     self.model.index(self.model.rowCount() - 1, 0), QItemSelectionModel.Rows)
         resultsmodel.dataChanged.emit(QModelIndex(), QModelIndex())
+        # self.correlationdocument.createStop()
+        print()
 
     # TODO better way to do this (sig, slot)
     def currentProcessor(self):
@@ -348,6 +347,8 @@ class XPCS(GUIPlugin):
     def process(self):
         # This should always pass, since this is the action for a process toolbar QAction
         if self.currentProcessor():
+            self.correlationdocument = CorrelationDocument(self.currentheader(), 'x')
+            # print(self.sender())
             workflow = self.currentProcessor().param['Algorithm']()
 
             data = [header.meta_array() for header in self.currentheaders()]
@@ -355,20 +356,35 @@ class XPCS(GUIPlugin):
             workflow.execute_all(None,
                                  data=data,
                                  labels=labels,
-                                 callback_slot=self.show_g2)
+                                 callback_slot=self.show_g2,
+                                 #callback_slot=self.show_g2,
+                                 finished_slot=self.finished_slot)
+
+            # To use createDocument() function instead of class, use callback_slot to collect the results,
+            # then use finished_slot to call createDocument(results) to create a document with multiple events
+            # (i.e. multiple items selected)
+
+    def finished_slot(self):
+        self.correlationdocument.createStop()
+        print()
 
     def show_g2(self, result):
-        data = {} # TODO -- temp { 'name': Uniqueresultname, 'result': result
+        print(result)
+        print(result['g2'].value)
+        data = dict()
         fileselectionview = self.currentFileSelectionView()
+        # TODO -- handle unique name - (data['name']) will be same regardless what image(s) are selected
         if not fileselectionview.correlationname.displayText():
             data['name'] = fileselectionview.correlationname.placeholderText()
         else:
             data['name'] = fileselectionview.correlationname.displayText()
 
         data['result'] = result
+        print(data['name'])
 
         try:
             self.addResults(data)
+            # self.correlationdocument.createStop()
             # if only a single image was selected, the value is 0 length.
             # self.correlationview.plotwidget.plot(result['g2'].value.squeeze())
 
@@ -384,7 +400,7 @@ class XPCS(GUIPlugin):
                                 'Please select more than one image')
         # add event and stop to the correlation document
         # TODO -- do we need the document? Why not just add to a model?
-        # self.correlationdocument.createEvent()
         # self.correlationdocument.add()
+
 
 
