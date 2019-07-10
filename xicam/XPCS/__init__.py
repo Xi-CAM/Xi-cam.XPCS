@@ -30,6 +30,7 @@ from .CorrelationDocument import CorrelationDocument
 import event_model
 from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 
+
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
     pass
 
@@ -41,13 +42,6 @@ class XPCSProcessor(ParameterTree):
         self._type = 'list'
         self._values = {}
         self._value = ''
-
-        # self.param = Parameter(children=[{'name': self._name,
-        #                                   'type': self._type,
-        #                                   'values': self._values,
-        #                                   'value': self._value}], name='Processor')
-        #
-        # self.setParameters(self.param, showTop=False)
 
 
 class OneTimeProcessor(XPCSProcessor):
@@ -130,17 +124,15 @@ class CorrelationView(QWidget):
         self.setLayout(layout)
 
         # Update plot figure whenever selected result changes
-        # self.selectionmodel.currentChanged.connect(self.updatePlot)
         self.selectionmodel.selectionChanged.connect(self.updatePlot)
-    # def results(self, modelIndex, dataKey):
-    #     return self.model.itemFromIndex(modelIndex).header.data(dataKey)
 
     def results(self, selection: QItemSelection, dataKey):
         results = []
         for index in selection.indexes():
             # for result in self.model.itemFromIndex(index).header['data'][dataKey]:
             #     results.append(result)
-            results.append(self.model.itemFromIndex(index).header['data'][dataKey].value)
+            results.append(self.model.data(index, Qt.UserRole)['data'][dataKey].value)
+            # results.append(self.model.itemFromIndex(index).data(DOC_ROLE)['data'][dataKey].value)
         return results
 
     def updatePlot(self, selected, deselected):
@@ -324,11 +316,6 @@ class XPCS(GUIPlugin):
         else:
             return None
 
-    # def currentSelectionModel(self):
-    #     model = self.currentModel()
-    #     if model:
-    #         return
-
     def process(self):
         # This should always pass, since this is the action for a process toolbar QAction
         if self.currentProcessor():
@@ -342,7 +329,7 @@ class XPCS(GUIPlugin):
             num_bufs = []
             for i, _ in enumerate(data):
                 shape = data[i].shape[0]
-                # multi_tau_corr requires num_bufs be even
+                # multi_tau_corr requires num_bufs to be even
                 if shape % 2:
                     shape += 1
                 num_bufs.append(shape)
@@ -354,10 +341,6 @@ class XPCS(GUIPlugin):
                                  callback_slot=self.saveResult,
                                  finished_slot=self.createDocument)
 
-            # To use createDocument() function instead of class, use callback_slot to collect the results,
-            # then use finished_slot to call createDocument(results) to create a document with multiple events
-            # (i.e. multiple items selected)
-
     def createDocument(self):
         # self.correlationdocument.createEvent(name=data['name'], image_series=data['name'],
         #                                      g2=data['result']['g2'].value)
@@ -368,14 +351,16 @@ class XPCS(GUIPlugin):
 
         for name, doc in catalog[key].read_canonical():
             if name == 'event':
-                item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-                item.header = doc
                 resultsmodel = self.currentModel()
+                item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
+                item.setData(doc, Qt.UserRole)
                 resultsmodel.appendRow(item)
+                selectionModel = self.currentSelectionModel()
                 deselected = self.currentSelectionModel().selection()
                 self.currentSelectionModel().setCurrentIndex(
                     resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
-                self.currentSelectionModel().selectionChanged.emit(self.currentSelectionModel().selection(), deselected)
+                selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
+                # self.currentSelectionModel().selectionChanged.emit(self.currentSelectionModel().selection(), deselected)
                 resultsmodel.dataChanged.emit(QModelIndex(), QModelIndex())
 
         self.__data = []
