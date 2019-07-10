@@ -29,6 +29,7 @@ import numpy as np # TODO -- this is for debugging
 from .CorrelationDocument import CorrelationDocument
 import event_model
 from intake_bluesky.in_memory import BlueskyInMemoryCatalog
+from functools import partial
 
 
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
@@ -238,12 +239,12 @@ class XPCS(GUIPlugin):
         self.twotimefileselection = FileSelectionView(self.headermodel, self.selectionmodel)
         self.twotimeprocessor = TwoTimeProcessor()
         self.twotimetoolbar = QToolBar()
-        self.twotimetoolbar.addAction('Process', self.process)
+        self.twotimetoolbar.addAction('Process', self.processTwoTime)
         self.onetimeview = OneTimeView()
         self.onetimefileselection = FileSelectionView(self.headermodel, self.selectionmodel)
         self.onetimeprocessor = OneTimeProcessor()
         self.onetimetoolbar = QToolBar()
-        self.onetimetoolbar.addAction('Process', self.process)
+        self.onetimetoolbar.addAction('Process', self.processOneTime)
 
         self.placeholder = QLabel('correlation parameters')
 
@@ -265,7 +266,7 @@ class XPCS(GUIPlugin):
         # TODO -- should CorrelationDocument be a member?
         self.correlationdocument = None
 
-        self.__data = []
+        self.__results = []
 
         super(XPCS, self).__init__()
 
@@ -290,38 +291,11 @@ class XPCS(GUIPlugin):
             headers.append(self.headermodel.itemFromIndex(model_index).header)
         return headers
 
-    # TODO better way to do this (sig, slot)
-    def currentProcessor(self):
-        processor = self.stage['rightbottom']
-        if isinstance(processor, XPCSProcessor):
-            return processor
-        else:
-            return None
-
-    def currentSelectionModel(self):
-        if isinstance(self.stage['center'], CorrelationView):
-            return self.stage['center'].selectionmodel
-        else:
-            return None
-
-    def currentFileSelectionView(self):
-        if isinstance(self.stage['right'], FileSelectionView):
-            return self.stage['right']
-        else:
-            return None
-
-    def currentModel(self):
-        if isinstance(self.stage['center'], CorrelationView):
-            return self.stage['center'].model
-        else:
-            return None
-
-    def process(self):
+    def process(self, processor: XPCSProcessor, **kwargs):
         # This should always pass, since this is the action for a process toolbar QAction
-        if self.currentProcessor():
-            self.correlationdocument = CorrelationDocument(self.currentheader(), 'x')
+        if processor:
             # print(self.sender())
-            workflow = self.currentProcessor().param['Algorithm']()
+            workflow = processor.param['Algorithm']()
 
             data = [header.meta_array() for header in self.currentheaders()]
             labels = [self.rawtabview.currentWidget().poly_mask()] * len(data)
@@ -333,74 +307,93 @@ class XPCS(GUIPlugin):
                 if shape % 2:
                     shape += 1
                 num_bufs.append(shape)
+
+            if kwargs.get('callback_slot'):
+                callback_slot = kwargs['callback_slot']
+            else:
+                callback_slot = self.saveResult
+            if kwargs.get('finished_slot'):
+                finished_slot = kwargs['finished_slot']
+            else:
+                finished_slot = self.createDocument
+
             workflow.execute_all(None,
                                  data=data,
                                  labels=labels,
                                  num_levels=num_levels,
                                  num_bufs=num_bufs,
-                                 callback_slot=self.saveResult,
-                                 finished_slot=self.createDocument)
+                                 callback_slot=callback_slot,
+                                 finished_slot=finished_slot)
 
-    def createDocument(self):
+    def processOneTime(self):
+        self.process(self.onetimeprocessor,
+                     callback_slot=partial(self.saveResult, fileSelectionView=self.onetimefileselection),
+                     finished_slot=partial(self.createDocument, view=self.onetimeview))
+
+    def processTwoTime(self):
+        self.process(self.twotimeprocessor,
+                     callback_slot=partial(self.saveResult, fileSelectionView=self.twotimefileselection),
+                     finished_slot=partial(self.createDocument, view=self.twotimeview))
+
+    def saveResult(self, result, fileSelectionView=None):
+        print(result)
+        print(result['g2'].value)
+        if fileSelectionView:
+            data = dict()
+            if not fileSelectionView.correlationname.displayText():
+                data['name'] = fileSelectionView.correlationname.placeholderText()
+            else:
+                data['name'] = fileSelectionView.correlationname.displayText()
+            data['result'] = result
+
+            print(data['name'])
+            self.__results.append(data)
+
+    def createDocument(self, view: CorrelationView=None):
         # self.correlationdocument.createEvent(name=data['name'], image_series=data['name'],
         #                                      g2=data['result']['g2'].value)
         # TODO Move catalog outside of this method
         catalog = BlueskyInMemoryCatalog()
-        catalog.upsert(_createDocument, (self.__data,), {})
+        catalog.upsert(self._createDocument, (self.__results,), {})
         key = list(catalog)[0]
 
         for name, doc in catalog[key].read_canonical():
             if name == 'event':
-                resultsmodel = self.currentModel()
+                resultsmodel = view.model
                 item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
                 item.setData(doc, Qt.UserRole)
                 resultsmodel.appendRow(item)
-                selectionModel = self.currentSelectionModel()
-                deselected = self.currentSelectionModel().selection()
-                self.currentSelectionModel().setCurrentIndex(
+                selectionModel = view.selectionmodel
+                deselected = selectionModel.selection()
+                selectionModel.setCurrentIndex(
                     resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
                 selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
                 # self.currentSelectionModel().selectionChanged.emit(self.currentSelectionModel().selection(), deselected)
                 resultsmodel.dataChanged.emit(QModelIndex(), QModelIndex())
 
-        self.__data = []
+        self.__results = []
         print()
         print()
 
-    def saveResult(self, result):
-        print(result)
-        print(result['g2'].value)
-        fileselectionview = self.currentFileSelectionView()
-        data = dict()
-        if not fileselectionview.correlationname.displayText():
-            data['name'] = fileselectionview.correlationname.placeholderText()
-        else:
-            data['name'] = fileselectionview.correlationname.displayText()
-        data['result'] = result
+    def _createDocument(self, results):
+        timestamp = time.time()
 
-        print(data['name'])
-        self.__data.append(data)
+        run_bundle = event_model.compose_run()
+        yield 'start', run_bundle.start_doc
 
+        data_keys = {'image_series': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []},
+                     'g2': {'source': 'Xi-cam XPCS', 'dtype': 'number', 'shape': [],},
+                     'name': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []}
+                     }
+        stream_bundle = run_bundle.compose_descriptor(data_keys=data_keys, name='primary')
+        yield 'descriptor', stream_bundle.descriptor_doc
 
-def _createDocument(results):
-    timestamp = time.time()
+        for result in results:
+            yield 'event', stream_bundle.compose_event(data={'image_series': result['name'],
+                                                             'g2': result['result']['g2'],
+                                                             'name': result['name']},
+                                                       timestamps={'image_series': timestamp,
+                                                                   'g2': timestamp,
+                                                                   'name': timestamp})
 
-    run_bundle = event_model.compose_run()
-    yield 'start', run_bundle.start_doc
-
-    data_keys = {'image_series': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []},
-                 'g2': {'source': 'Xi-cam XPCS', 'dtype': 'number', 'shape': [],},
-                 'name': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []}
-                 }
-    stream_bundle = run_bundle.compose_descriptor(data_keys=data_keys, name='primary')
-    yield 'descriptor', stream_bundle.descriptor_doc
-
-    for result in results:
-        yield 'event', stream_bundle.compose_event(data={'image_series': result['name'],
-                                                         'g2': result['result']['g2'],
-                                                         'name': result['name']},
-                                                   timestamps={'image_series': timestamp,
-                                                               'g2': timestamp,
-                                                               'name': timestamp})
-
-    yield 'stop', run_bundle.compose_stop()
+        yield 'stop', run_bundle.compose_stop()
