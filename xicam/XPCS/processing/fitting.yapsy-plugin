@@ -1,0 +1,4 @@
+[Core]
+Name = Fitting
+Module = fitting.py
+

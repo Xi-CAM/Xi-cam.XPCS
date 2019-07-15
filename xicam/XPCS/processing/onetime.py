@@ -17,12 +17,12 @@ class OneTimeCorrelation(ProcessingPlugin):
     num_bufs = Input(description="""must be even
         maximum lag step to compute in each generation of downsampling""", type=int, default=1000)
 
-    g2 = Output(description="""the normalized correlation shape is (len(lag_steps), num_rois)""", type=np.array)
+    g2 = Output(description="""the normalized correlation shape is (len(lag_steps), num_rois)""",
+                type=np.array)
+    lag_steps = Output(type=np.array)
 
     def evaluate(self):
-        self.g2.value, lag_steps = corr.multi_tau_auto_corr(self.num_levels.value,
-                                                            self.num_bufs.value,
-                                                            self.labels.value.astype(np.int),
-                                                            np.array(self.data.value))
-        # seems to only work with ints
-        print()
+        self.g2.value, self.lag_steps.value = corr.multi_tau_auto_corr(self.num_levels.value,
+                                                                       self.num_bufs.value,
+                                                                       self.labels.value.astype(np.int),
+                                                                       np.array(self.data.value))
