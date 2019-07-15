@@ -1,6 +1,6 @@
 from xicam.plugins import ProcessingPlugin
 from ..processing.onetime import OneTimeCorrelation
-from ..processing.fitting import Fitting
+from ..processing.fitting import FitScatteringFactor
 from ..processing.fourierautocorrelator import FourierCorrelation
 from xicam.core.execution import Workflow
 
@@ -19,7 +19,7 @@ class OneTime(XPCSWorkflow):
         super(OneTime, self).__init__()
         self.onetime = OneTimeCorrelation()
         self.addProcess(self.onetime)
-        self.fitting = Fitting()
+        self.fitting = FitScatteringFactor()
         self.addProcess(self.fitting)
         self.autoConnectAll()
 
@@ -31,9 +31,9 @@ class OneTime(XPCSWorkflow):
         children += self.onetime.parameter.children()
         children += self.fitting.parameter.children()
         parameters = []
-        white_list = ['num_levels', 'num_bufs', 'beta']
+        inclusions = ['num_levels', 'num_bufs', 'beta']
         for child in children:
-            if child.name() in white_list:
+            if child.name() in inclusions:
                 parameters.append(child)
         return parameters
 

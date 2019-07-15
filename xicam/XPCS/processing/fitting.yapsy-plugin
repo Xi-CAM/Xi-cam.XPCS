@@ -1,4 +1,4 @@
 [Core]
-Name = Fitting
+Name = xicam.XPCS.processing.fitting.FitScatteringFactor
 Module = fitting.py
 
