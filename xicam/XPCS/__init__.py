@@ -16,6 +16,7 @@ from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
 from .workflows import OneTime, TwoTime, FourierAutocorrelator
+from .widgets.onetimeplot import OneTimePlotWidget
 
 # from . import CorrelationPlugin
 import time
@@ -229,6 +230,12 @@ class XPCS(GUIPlugin):
         # Widgets
         self.calibrationsettings = pluginmanager.getPluginByName('xicam.SAXS.calibration',
                                                                  'SettingsPlugin').plugin_object
+        self.plotwidget = OneTimePlotWidget()
+        self.processor = XPCSProcessor()
+
+        # Toolbar
+        self.toolbar = QToolBar()
+        self.toolbar.addAction('Process', self.process)
 
         # Setup TabViews
         self.rawtabview = TabView(self.headermodel,
