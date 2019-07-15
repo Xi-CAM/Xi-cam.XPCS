@@ -51,10 +51,13 @@ class OneTimeProcessor(XPCSProcessor):
         for k, v in OneTimeAlgorithms.categories().items():
             self._values[k] = v
         self._value = OneTimeAlgorithms.default()
-        self.param = Parameter(children=[{'name': self._name,
-                                          'type': 'list',
-                                          'values': self._values,
-                                          'value': self._value}], name='1-Time Processor')
+
+        children = [{'name': self._name,
+                         'type': 'list',
+                         'values': self._values,
+                         'value': self._value}]
+        children += OneTime().parameters # TODO
+        self.param = Parameter(children=children, name='1-Time Processor')
         self.setParameters(self.param, showTop=False)
 
 
