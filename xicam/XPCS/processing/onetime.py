@@ -19,8 +19,8 @@ class OneTimeCorrelation(ProcessingPlugin):
                      name="number of buffers")
 
     g2 = Output(description="""the normalized correlation shape is (len(lag_steps), num_rois)""",
-                type=np.array)
-    lag_steps = Output(type=np.array)
+                type=np.ndarray)
+    lag_steps = Output(type=np.ndarray)
 
     def evaluate(self):
         self.g2.value, self.lag_steps.value = corr.multi_tau_auto_corr(self.num_levels.value,
