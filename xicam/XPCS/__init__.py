@@ -15,6 +15,7 @@ from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPluginBase
 from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from pyqtgraph.parametertree import ParameterTree, Parameter
+from pyqtgraph.parametertree.parameterTypes import ListParameter
 from .workflows import OneTime, TwoTime, FourierAutocorrelator
 from .widgets.onetimeplot import OneTimePlotWidget
 
@@ -40,54 +41,64 @@ class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
 class XPCSProcessor(ParameterTree):
     def __init__(self, *args, **kwargs):
         super(XPCSProcessor, self).__init__()
-        self._name = 'Algorithm'
-        self._type = 'list'
-        self._values = {}
-        self._value = ''
+        self._paramName = 'Algorithm'
+        self._name = 'XPCS Processor'
+        self.workflow = None
+        self.param = None
+        self._workflows = dict()
+
+        self.listParameter = ListParameter(name=self._paramName,
+                                           values={'':''},
+                                           value='')
+
+        self.param = Parameter(children=[self.listParameter], name=self._name)
+        self.setParameters(self.param, showTop=False)
+
+    def update(self, *_):
+        for child in self.param.childs[1:]:
+            child.remove()
+
+        self.workflow = self._workflows.get(self.listParameter.value().name, self.listParameter.value()())
+        self._workflows[self.workflow.name] = self.workflow
+        for process in self.workflow.processes:
+            self.param.addChild(process.parameter)
 
 
 class OneTimeProcessor(XPCSProcessor):
     def __init__(self, *args, **kwargs):
         super(OneTimeProcessor, self).__init__()
-        for k, v in OneTimeAlgorithms.categories().items():
-            self._values[k] = v
-        self._value = OneTimeAlgorithms.default()
+        self._name = '1-Time Processor'
+        self.listParameter.setLimits(OneTimeAlgorithms.algorithms())
+        self.listParameter.setValue(OneTimeAlgorithms.algorithms()[OneTimeAlgorithms.default()])
 
-        children = [{'name': self._name,
-                         'type': 'list',
-                         'values': self._values,
-                         'value': self._value}]
-        children += OneTime().parameters # TODO
-        self.param = Parameter(children=children, name='1-Time Processor')
-        self.setParameters(self.param, showTop=False)
+        self.update()
+        self.listParameter.sigValueChanged.connect(self.update)
 
 
 class TwoTimeProcessor(XPCSProcessor):
     def __init__(self, *args, **kwargs):
         super(TwoTimeProcessor, self).__init__()
-        for k, v in TwoTimeAlgorithms.categories().items():
-            self._values[k] = v
-        self._value = TwoTimeAlgorithms.default()
-        self.param = Parameter(children=[{'name': self._name,
-                                          'type': self._type,
-                                          'values': self._values,
-                                          'value': self._value}], name='2-Time Processor')
-        self.setParameters(self.param, showTop=False)
+        self._name = '2-Time Processor'
+        self.listParameter.setLimits(TwoTimeAlgorithms.algorithms())
+        self.listParameter.setValue(TwoTimeAlgorithms.algorithms()[TwoTimeAlgorithms.default()])
+
+        self.update()
+        self.listParameter.sigValueChanged.connect(self.update)
 
 
-class ProcessingCategories:
+class ProcessingAlgorithms:
     @staticmethod
-    def categories():
+    def algorithms():
         return {
-            TwoTimeAlgorithms.name: TwoTimeAlgorithms.categories(),
-            OneTimeAlgorithms.name: OneTimeAlgorithms.categories()
+            TwoTimeAlgorithms.name: TwoTimeAlgorithms.algorithms(),
+            OneTimeAlgorithms.name: OneTimeAlgorithms.algorithms()
         }
 
 
-class TwoTimeAlgorithms(ProcessingCategories):
+class TwoTimeAlgorithms(ProcessingAlgorithms):
     name = '2-Time Algorithms'
     @staticmethod
-    def categories():
+    def algorithms():
         return {TwoTime.name: TwoTime}
 
     @staticmethod
@@ -95,10 +106,10 @@ class TwoTimeAlgorithms(ProcessingCategories):
         return TwoTime.name
 
 
-class OneTimeAlgorithms(ProcessingCategories):
+class OneTimeAlgorithms(ProcessingAlgorithms):
     name = '1-Time Algorithms'
     @staticmethod
-    def categories():
+    def algorithms():
         return {OneTime.name: OneTime,
                 FourierAutocorrelator.name: FourierAutocorrelator}
 
@@ -305,7 +316,7 @@ class XPCS(GUIPlugin):
         # This should always pass, since this is the action for a process toolbar QAction
         if processor:
             # print(self.sender())
-            workflow = processor.param['Algorithm']()
+            workflow = processor.workflow
 
             data = [header.meta_array() for header in self.currentheaders()]
             labels = [self.rawtabview.currentWidget().poly_mask()] * len(data)
@@ -346,8 +357,8 @@ class XPCS(GUIPlugin):
                      finished_slot=partial(self.createDocument, view=self.twotimeview))
 
     def saveResult(self, result, fileSelectionView=None):
-        print(result)
-        print(result['g2'].value)
+        # print(result)
+        # print(result['g2'].value)
         if fileSelectionView:
             data = dict()
             if not fileSelectionView.correlationname.displayText():
@@ -356,7 +367,7 @@ class XPCS(GUIPlugin):
                 data['name'] = fileSelectionView.correlationname.displayText()
             data['result'] = result
 
-            print(data['name'])
+            # print(data['name'])
             self.__results.append(data)
 
     def createDocument(self, view: CorrelationView=None):
