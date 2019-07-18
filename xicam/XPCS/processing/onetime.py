@@ -4,12 +4,12 @@ import numpy as np
 
 
 class OneTimeCorrelation(ProcessingPlugin):
-    data = Input(description='Array of two or more dimensions.', type=np.ndarray)
+    data = Input(description='Array of two or more dimensions.', type=np.ndarray, visible=False)
 
     labels = Input(description="""Labeled array of the same shape as the image stack.
         Each ROI is represented by sequential integers starting at one.  For
         example, if you have four ROIs, they must be labeled 1, 2, 3,
-        4. Background is labeled as 0""", type=np.array)
+        4. Background is labeled as 0""", type=np.ndarray, visible=False)
     # Set to num_levels to 1 if multi-tau correlation isn't desired,
     # then set num_bufs to number of images you wish to correlate
     num_levels = Input(description="""how many generations of downsampling to perform, i.e., the depth of
@@ -26,4 +26,4 @@ class OneTimeCorrelation(ProcessingPlugin):
         self.g2.value, self.lag_steps.value = corr.multi_tau_auto_corr(self.num_levels.value,
                                                                        self.num_bufs.value,
                                                                        self.labels.value.astype(np.int),
-                                                                       np.array(self.data.value))
+                                                                       np.asarray(self.data.value))
