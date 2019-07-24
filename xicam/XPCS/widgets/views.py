@@ -1,6 +1,6 @@
 from qtpy.QtCore import QItemSelection, Qt
 from qtpy.QtGui import QStandardItemModel
-from qtpy.QtWidgets import QAbstractItemView, QLineEdit, QListView, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QAbstractItemView, QDialog, QLineEdit, QListView, QVBoxLayout, QWidget
 
 import pyqtgraph as pg
 
@@ -31,24 +31,60 @@ class CorrelationView(QWidget):
     def results(self, selection: QItemSelection, dataKey):
         results = []
         for index in selection.indexes():
-            results.append(self.model.data(index, Qt.UserRole)['data'][dataKey])
+            eventlist = self.model.data(index, Qt.UserRole)
+            # If processing, eventlist contains a dict: {'data': {'g2': [g2curve, g2curve...]}}
+            # If loading, eventlist contains a list: [{'data': {'g2': g2curve}}, {'data'...}]
+            for i, event in enumerate(eventlist):
+                print(f'i, event: {i, event}')
+                print(f'type(event["data"][{dataKey}]): {type(event["data"][dataKey])}')
+                results.append(event['data'][dataKey])
         return results
+        # for index in selection.indexes():
+        #     resultData = self.model.data(index, Qt.UserRole)
+        #     for result in resultData:
+        #         results.append(result['data'][dataKey])
+        # return results
 
 
     def updatePlot(self, selected, deselected):
         # the selected arg only contains the new selection (not current selection + new selection)
-        # TODO -- process one file, then select other and process, there is no plot until switching back and forth.
         # TODO -- check multiple items being processed
         self.plot.clear()
         g2 = self.results(self.selectionmodel.selection(), 'g2')
         lag_steps = self.results(self.selectionmodel.selection(), 'lag_steps')
         for step, result in enumerate(g2):
             yData = result.squeeze()
-            # Offset x axis by 1 to avoid log10(0) runtime error at PlotDataItem.py:531
+            # Offset x axis by 1 to avoid log10(0) runtime warning at PlotDataItem.py:531
             # xData = np.arange(1, len(yData) + 1)
-            xData = lag_steps[step]
+            xData = lag_steps[step].squeeze()
             self.plot.plot(x=xData, y=yData)
         # self.resultslist.setCurrentIndex(selected.indexes()[-1])
+
+    def createFigure(self):
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+
+        # TODO -- hook in the qslicing
+        qslice = 1
+
+        figure = plt.figure()
+        grid_spec = gridspec.GridSpec(3, 3)
+        selection = self.selectionmodel.selection()
+        legend = []
+        for index in selection.indexes():
+            legend.append(index.data(Qt.DisplayRole))
+        for q in range(qslice):
+            ax = figure.add_subplot(grid_spec[q % 3, q // 3], label=q)
+            ax.set_xscale('log')
+            g2 = self.results(selection, 'g2')
+            lag_steps = self.results(selection, 'lag_steps')
+            for step, result in enumerate(g2):
+                yData = result.squeeze()
+                xData = lag_steps[step].squeeze()
+                plt.plot(xData, yData, 'D-', fillstyle='none')
+            ax.legend(legend)
+
+        plt.show()  # TODO -- "QCoreApplication::exec: The event loop is already running"
 
 
 class OneTimeView(CorrelationView):

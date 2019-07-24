@@ -21,7 +21,6 @@ from .widgets.views import CorrelationView, FileSelectionView, OneTimeView, TwoT
 
 import time
 
-import numpy as np # TODO -- this is for debugging
 import event_model
 from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 from functools import partial
@@ -115,13 +114,12 @@ class XPCS(GUIPlugin):
     name = 'XPCS'
 
     def __init__(self):
-
-        # TODO Move catalog outside of this method
         self.catalog = BlueskyInMemoryCatalog()
 
+        # XPCS data model
         self.resultsmodel = QStandardItemModel()
 
-        # Data model
+        # Input (raw) data model
         self.headermodel = QStandardItemModel()
         self.selectionmodel = QItemSelectionModel(self.headermodel)
 
@@ -152,6 +150,7 @@ class XPCS(GUIPlugin):
         self.onetimeprocessor = OneTimeProcessor()
         self.onetimetoolbar = QToolBar()
         self.onetimetoolbar.addAction('Process', self.processOneTime)
+        self.onetimetoolbar.addAction('Figure', self.onetimeview.createFigure)
 
         self.placeholder = QLabel('correlation parameters')
 
@@ -170,9 +169,7 @@ class XPCS(GUIPlugin):
                                                        bottom=self.placeholder)
                        }
 
-        # TODO -- should CorrelationDocument be a member?
-        self.correlationdocument = None
-
+        # TODO -- improve result caching
         self.__results = []
 
         super(XPCS, self).__init__()
@@ -185,6 +182,14 @@ class XPCS(GUIPlugin):
         self.selectionmodel.setCurrentIndex(self.headermodel.index(self.headermodel.rowCount() - 1, 0),
                                             QItemSelectionModel.Rows)
         self.headermodel.dataChanged.emit(QModelIndex(), QModelIndex())
+
+        import pathlib
+        path = header.startdoc.get('paths')[0]
+        if path:
+            if pathlib.Path(path).suffix == '.hdf':
+                item_temp = QStandardItem(header.startdoc.get('sample_name', '????'))
+                item_temp.setData(header.eventdocs, Qt.UserRole)
+                self.onetimeview.model.appendRow(item_temp)
 
     def getAI(self):
         return None
@@ -267,21 +272,20 @@ class XPCS(GUIPlugin):
             if name == 'event':
                 resultsmodel = view.model
                 item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-                item.setData(doc, Qt.UserRole)
+                item.setData([doc], Qt.UserRole)
                 resultsmodel.appendRow(item)
                 selectionModel = view.selectionmodel
                 selectionModel.reset()
                 selectionModel.setCurrentIndex(
                     resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
                 selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
-                # self.currentSelectionModel().selectionChanged.emit(self.currentSelectionModel().selection(), deselected)
-                # resultsmodel.dataChanged.emit(resultsmodel.currentIndex())
 
         self.__results = []
         print()
         print()
 
     def _createDocument(self, results):
+        # TODO -- update for multiple ROIs (list of g2curves for each ROI)
         timestamp = time.time()
 
         run_bundle = event_model.compose_run()
