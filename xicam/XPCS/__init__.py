@@ -187,9 +187,24 @@ class XPCS(GUIPlugin):
         path = header.startdoc.get('paths')[0]
         if path:
             if pathlib.Path(path).suffix == '.hdf':
-                item_temp = QStandardItem(header.startdoc.get('sample_name', '????'))
-                item_temp.setData(header.eventdocs, Qt.UserRole)
-                self.onetimeview.model.appendRow(item_temp)
+                startItem = QStandardItem(header.startdoc.get('sample_name', '??'))
+                eventlist = header.eventdocs
+                for i, eventdict in enumerate(eventlist):
+                    eventItem = QStandardItem(str(i))
+                    eventItem.setData(eventdict, Qt.UserRole)
+                    eventItem.setCheckable(True)
+                    startItem.appendRow(eventItem)
+                self.onetimeview.model.invisibleRootItem().appendRow(startItem)
+
+
+                # item_temp = QStandardItem(header.startdoc.get('sample_name', '????'))
+                # item_temp.setData(header.eventdocs, Qt.UserRole)
+                # # TODO -- properly add to view (one-time or 2-time, etc.)
+                # model = self.onetimeview.model
+                # rootItem = model.invisibleRootItem()
+                # rootItem.appendRow(item_temp)
+                # # self.onetimeview.model.appendRow(item_temp)
+                # rootItem.appendRow(QStandardItem('blah'))
 
     def getAI(self):
         return None
@@ -263,23 +278,27 @@ class XPCS(GUIPlugin):
             self.__results.append(data)
 
     def createDocument(self, view: CorrelationView=None):
-        # self.correlationdocument.createEvent(name=data['name'], image_series=data['name'],
-        #                                      g2=data['result']['g2'].value)
+        # TODO -- update for multiple ROIs (list of g2curves for each ROI)
         self.catalog.upsert(self._createDocument, (self.__results,), {})
         key = list(self.catalog)[-1]
 
+        test_item = QStandardItem('test')
+        event_count = 0
         for name, doc in self.catalog[key].read_canonical():
             if name == 'event':
                 resultsmodel = view.model
-                item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-                item.setData([doc], Qt.UserRole)
-                resultsmodel.appendRow(item)
+                # item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
+                item = QStandardItem(str(event_count))
+                item.setData(doc, Qt.UserRole)
+                item.setCheckable(True)
+                # resultsmodel.appendRow(item)
+                test_item.appendRow(item)
                 selectionModel = view.selectionmodel
                 selectionModel.reset()
                 selectionModel.setCurrentIndex(
                     resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
                 selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
-
+        resultsmodel.appendRow(test_item)
         self.__results = []
         print()
         print()
