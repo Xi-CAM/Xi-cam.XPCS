@@ -3,14 +3,24 @@ from qtpy.QtGui import QStandardItemModel, QStandardItem
 from qtpy.QtWidgets import QAbstractItemView, QDialog, QLineEdit, QListView, QTreeView, QVBoxLayout, QWidget
 
 import pyqtgraph as pg
-
+import numpy as np
 
 # class ResultsView(QTreeView):
 #
 #     def __init__(self, parent=None):
 #         super(ResultsView, self).__init__(parent)
 
-
+# TODO
+# - update 'random' color scheme
+# - nice to have add abilities:
+#   - to show symbols
+#   - to show lines
+# - add legend (for curves)
+# - get calculated q
+# - might be nice to have selection model check/uncheck items
+#   - e.g. if selectedItem(s) is checkable: toggle check
+#   - model item clicked
+# - should the view be editable?
 class CorrelationView(QWidget):
     """
     Widget for viewing the correlation results.
@@ -23,23 +33,11 @@ class CorrelationView(QWidget):
         self.resultslist = QTreeView(self)
         self.resultslist.setHeaderHidden(True)
 
-        # from qtpy.QtGui import QStandardItem
-        # m = QStandardItemModel()
-        # root = m.invisibleRootItem()
-        # m.appendRow(QStandardItem('aaa'))
-        # parentItem = QStandardItem('bbb')
-        # m.appendRow(parentItem)
-        # parentItem.appendRow(QStandardItem('bbb child'))
-        # self.resultslist.setModel(m)
-        # self.resultslist.setSelectionMode(QAbstractItemView.NoSelection)
-
-        # self.resultslist.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.resultslist.setSelectionMode(QAbstractItemView.NoSelection)
-        self.plotOpts = {
-            'antialias': True,
-            'pen': 'r'
-        }
+        self.plotOpts = dict()
         self._plot = pg.PlotWidget(**self.plotOpts)
+        self._legend = pg.LegendItem(offset=[-1, 1])
+        self.legend.setParentItem(self._plot.getPlotItem())
         self.resultslist.setModel(self.model)
         self.selectionmodel = self.resultslist.selectionModel()
 
@@ -48,15 +46,17 @@ class CorrelationView(QWidget):
         layout.addWidget(self._plot)
         self.setLayout(layout)
 
-        # Update plot figure whenever selected result changes
-        # self.selectionmodel.selectionChanged.connect(self.updatePlot)
-
         self.checkedItemIndexes = []
+        self._curves = []
         self.model.itemChanged.connect(self.updatePlot)
 
     @property
     def plot(self):
         return self._plot
+
+    @property
+    def legend(self):
+        return self._legend
 
     def results(self, dataKey):
         for index in self.checkedItemIndexes:
@@ -70,60 +70,29 @@ class CorrelationView(QWidget):
             # TODO -- might need try for ValueError
             self.checkedItemIndexes.remove(itemIndex)
 
-        self.plot.clear()
         g2 = list(self.results('g2'))
+        g2_err = list(self.results('g2_err'))
         lag_steps = list(self.results('lag_steps'))
-        # for step, result in enumerate(g2):
-        numCheckedRois = len(g2)
-        # TODO -- temp, need to actually get number of selected ROIs
-        # if numCheckedRois > 3:
-        #     numCheckedRois = 3
-        for roi in range(numCheckedRois):
+        roi_list = list(self.results('name'))
+        self.plot.clear()
+        for curve in self._curves:
+            self.legend.removeItem(curve)
+        self._curves.clear()
+        for roi in range(len(self.checkedItemIndexes)):
             yData = g2[roi].squeeze()
             # Offset x axis by 1 to avoid log10(0) runtime warning at PlotDataItem.py:531
             xData = lag_steps[roi].squeeze()
-            self.plotOpts['pen'] = (roi, numCheckedRois)
-            self.plot.plot(x=xData, y=yData, **self.plotOpts, )
-        # itemKey = item.parent().data(Qt.DisplayRole) + item.data(Qt.DisplayRole)
-        # if item.checkState():
-        #     self.checkedItems[itemKey] = item
-        # else:
-        #     if self.checkedItems.get(itemKey):
-        #         self.checkedItems.pop(itemKey)
-        #
-        # self.plot.clear()
-        # for item in self.checkedItems.values():
-        #     eventDoc = item.data(Qt.UserRole)
-        #     for i, event in enumerate(eventDoc):
+            color = [float(roi) / len(self.checkedItemIndexes) * 255,
+                     (1 - float(roi) / len(self.checkedItemIndexes)) * 255,
+                     255]
+            self.plotOpts['pen'] = color
+            err = g2_err[roi].squeeze()
+            self.plot.addItem(pg.ErrorBarItem(x=np.log10(xData), y=yData, top=err, bottom=err, **self.plotOpts))
+            curve = self.plot.plot(x=xData, y=yData, **self.plotOpts)
+            self._curves.append(curve)
 
+            self.legend.addItem(curve, name=repr(roi_list[roi]))
 
-    # def results(self, selection: QItemSelection, dataKey):
-    #     results = []
-    #     # TODO -- handle when parent item is selected
-    #     for index in selection.indexes():
-    #         results.append(self.model.data(index, Qt.UserRole)['data'][dataKey])
-    #     # for index in selection.indexes():
-    #     #     eventlist = self.model.data(index, Qt.UserRole)
-    #     #     for i, event in enumerate(eventlist):
-    #     #         results.append(event['data'][dataKey])
-    #     return results
-    #
-    # def updatePlot(self, selected, deselected):
-    #     # the selected arg only contains the new selection (not current selection + new selection)
-    #     # TODO -- check multiple items being processed
-    #     self.plot.clear()
-    #     g2 = self.results(self.selectionmodel.selection(), 'g2')
-    #     lag_steps = self.results(self.selectionmodel.selection(), 'lag_steps')
-    #     # for step, result in enumerate(g2):
-    #     numSelectedRois = len(g2)
-    #     # TODO -- temp, need to actually get number of selected ROIs
-    #     # if numSelectedRois > 3:
-    #     #     numSelectedRois = 3
-    #     for roi in range(numSelectedRois):
-    #         yData = g2[roi].squeeze()
-    #         # Offset x axis by 1 to avoid log10(0) runtime warning at PlotDataItem.py:531
-    #         xData = lag_steps[roi].squeeze()
-    #         self.plot.plot(x=xData, y=yData)
 
     def createFigure(self):
         # TODO -- each event represents an ROI, which represents a grid item

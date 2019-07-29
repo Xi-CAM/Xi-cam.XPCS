@@ -1,29 +1,27 @@
+import pathlib
+import time
+from functools import partial
+
+import dill as pickle
+import event_model
+from intake_bluesky.in_memory import BlueskyInMemoryCatalog
+from pyqtgraph.parametertree import Parameter, ParameterTree
+from pyqtgraph.parametertree.parameterTypes import ListParameter
 from qtpy.QtCore import *
 from qtpy.QtGui import *
 from qtpy.QtWidgets import *
-from qtpy import uic
-import pyqtgraph as pg
-
-from matplotlib import pyplot as plt
 
 from xicam.core import msg
-from xicam.plugins import GUIPlugin, GUILayout, ProcessingPlugin
-from xicam.plugins import manager as pluginmanager
-
-from xicam.gui.widgets.tabview import TabView
-from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPluginBase
 from xicam.core.data import NonDBHeader
 from xicam.gui.widgets.imageviewmixins import PolygonROI
-from pyqtgraph.parametertree import ParameterTree, Parameter
-from pyqtgraph.parametertree.parameterTypes import ListParameter
-from .workflows import OneTime, TwoTime, FourierAutocorrelator
-from .widgets.views import CorrelationView, FileSelectionView, OneTimeView, TwoTimeView
+from xicam.gui.widgets.tabview import TabView
+from xicam.plugins import GUILayout, GUIPlugin
+from xicam.plugins import manager as pluginmanager
+from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPluginBase
 
-import time
-
-import event_model
-from intake_bluesky.in_memory import BlueskyInMemoryCatalog
-from functools import partial
+from .widgets.views import (CorrelationView, FileSelectionView, OneTimeView,
+                            TwoTimeView)
+from .workflows import FourierAutocorrelator, OneTime, TwoTime
 
 
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
@@ -79,6 +77,10 @@ class TwoTimeProcessor(XPCSProcessor):
 
 
 class ProcessingAlgorithms:
+    """
+    Convenience class to get the available algorithms that can be used for
+    one-time and two-time correlations.
+    """
     @staticmethod
     def algorithms():
         return {
@@ -170,7 +172,7 @@ class XPCS(GUIPlugin):
                        }
 
         # TODO -- improve result caching
-        self.__results = []
+        self._results = []
 
         super(XPCS, self).__init__()
 
@@ -183,28 +185,19 @@ class XPCS(GUIPlugin):
                                             QItemSelectionModel.Rows)
         self.headermodel.dataChanged.emit(QModelIndex(), QModelIndex())
 
-        import pathlib
-        path = header.startdoc.get('paths')[0]
-        if path:
-            if pathlib.Path(path).suffix == '.hdf':
+        paths = header.startdoc.get('paths')
+        for path in paths:
+            if path and pathlib.Path(path).suffix == '.hdf':
                 startItem = QStandardItem(header.startdoc.get('sample_name', '??'))
                 eventlist = header.eventdocs
-                for i, eventdict in enumerate(eventlist):
-                    eventItem = QStandardItem(str(i))
-                    eventItem.setData(eventdict, Qt.UserRole)
+                for event in eventlist:
+                    # repr(event['data']['name']
+                    eventItem = QStandardItem(event['data']['name'])
+                    eventItem.setData(event, Qt.UserRole)
                     eventItem.setCheckable(True)
                     startItem.appendRow(eventItem)
+                # TODO -- properly add to view (one-time or 2-time, etc.)
                 self.onetimeview.model.invisibleRootItem().appendRow(startItem)
-
-
-                # item_temp = QStandardItem(header.startdoc.get('sample_name', '????'))
-                # item_temp.setData(header.eventdocs, Qt.UserRole)
-                # # TODO -- properly add to view (one-time or 2-time, etc.)
-                # model = self.onetimeview.model
-                # rootItem = model.invisibleRootItem()
-                # rootItem.appendRow(item_temp)
-                # # self.onetimeview.model.appendRow(item_temp)
-                # rootItem.appendRow(QStandardItem('blah'))
 
     def getAI(self):
         return None
@@ -219,15 +212,25 @@ class XPCS(GUIPlugin):
             headers.append(self.headermodel.itemFromIndex(model_index).header)
         return headers
 
+    def processOneTime(self):
+        self.process(self.onetimeprocessor,
+                     callback_slot=partial(self.saveResult, fileSelectionView=self.onetimefileselection),
+                     finished_slot=partial(self.createDocument, view=self.onetimeview))
+
+    def processTwoTime(self):
+        self.process(self.twotimeprocessor,
+                     callback_slot=partial(self.saveResult, fileSelectionView=self.twotimefileselection),
+                     finished_slot=partial(self.createDocument, view=self.twotimeview))
+
     def process(self, processor: XPCSProcessor, **kwargs):
-        # This should always pass, since this is the action for a process toolbar QAction
         if processor:
-            # print(self.sender())
             workflow = processor.workflow
 
             data = [header.meta_array() for header in self.currentheaders()]
-            labels = [self.rawtabview.currentWidget().poly_mask()] * len(data)
+            currentWidget = self.rawtabview.currentWidget()
+            labels = [currentWidget.poly_mask()] * len(data)
             num_levels = [1] * len(data)
+
             num_bufs = []
             for i, _ in enumerate(data):
                 shape = data[i].shape[0]
@@ -245,27 +248,21 @@ class XPCS(GUIPlugin):
             else:
                 finished_slot = self.createDocument
 
+            workflow_pickle = None# pickle.dumps(workflow)
             workflow.execute_all(None,
                                  data=data,
                                  labels=labels,
                                  num_levels=num_levels,
                                  num_bufs=num_bufs,
                                  callback_slot=callback_slot,
-                                 finished_slot=finished_slot)
-
-    def processOneTime(self):
-        self.process(self.onetimeprocessor,
-                     callback_slot=partial(self.saveResult, fileSelectionView=self.onetimefileselection),
-                     finished_slot=partial(self.createDocument, view=self.onetimeview))
-
-    def processTwoTime(self):
-        self.process(self.twotimeprocessor,
-                     callback_slot=partial(self.saveResult, fileSelectionView=self.twotimefileselection),
-                     finished_slot=partial(self.createDocument, view=self.twotimeview))
+                                 finished_slot=partial(finished_slot,
+                                                       header=self.currentheader(),
+                                                       roi=repr(currentWidget),
+                                                       workflow=workflow_pickle))
+            # TODO -- should header be passed to callback_slot
+            # (callback slot handle can handle multiple data items in data list)
 
     def saveResult(self, result, fileSelectionView=None):
-        # print(result)
-        # print(result['g2'].value)
         if fileSelectionView:
             data = dict()
             if not fileSelectionView.correlationname.displayText():
@@ -274,58 +271,92 @@ class XPCS(GUIPlugin):
                 data['name'] = fileSelectionView.correlationname.displayText()
             data['result'] = result
 
-            # print(data['name'])
-            self.__results.append(data)
+            self._results.append(data)
 
-    def createDocument(self, view: CorrelationView=None):
-        # TODO -- update for multiple ROIs (list of g2curves for each ROI)
-        self.catalog.upsert(self._createDocument, (self.__results,), {})
+    def createDocument(self, view: CorrelationView, header, roi, workflow):
+        self.catalog.upsert(self._createDocument, (self._results, header, roi, workflow), {})
+        # TODO -- make sure that this works for multiple selected series to process
         key = list(self.catalog)[-1]
 
-        test_item = QStandardItem('test')
-        event_count = 0
+        parentItem = QStandardItem(self._results[-1]['name'])
         for name, doc in self.catalog[key].read_canonical():
             if name == 'event':
                 resultsmodel = view.model
                 # item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-                item = QStandardItem(str(event_count))
+                item = QStandardItem(repr(doc['data']['name']))
                 item.setData(doc, Qt.UserRole)
                 item.setCheckable(True)
-                # resultsmodel.appendRow(item)
-                test_item.appendRow(item)
+                parentItem.appendRow(item)
                 selectionModel = view.selectionmodel
                 selectionModel.reset()
                 selectionModel.setCurrentIndex(
                     resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
                 selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
-        resultsmodel.appendRow(test_item)
-        self.__results = []
-        print()
-        print()
+        resultsmodel.appendRow(parentItem)
+        self._results = []
 
-    def _createDocument(self, results):
-        # TODO -- update for multiple ROIs (list of g2curves for each ROI)
+    def _createDocument(self, results, header, roi, workflow):
         timestamp = time.time()
 
         run_bundle = event_model.compose_run()
         yield 'start', run_bundle.start_doc
 
-        data_keys = {'image_series': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []},
-                     'g2': {'source': 'Xi-cam XPCS', 'dtype': 'number', 'shape': []},
-                     'lag_steps': {'source': 'Xi-cam XPCS', 'dtype': 'number', 'shape': []},
-                     'name': {'source': 'Xi-cam', 'dtype': 'string', 'shape': []}
-                     }
-        stream_bundle = run_bundle.compose_descriptor(data_keys=data_keys, name='primary')
-        yield 'descriptor', stream_bundle.descriptor_doc
+        # TODO -- make sure g2_err is calculated and added to internal process documents
+        # TODO -- make sure workflow pickles, or try dill / cloudpickle
+        source = 'Xi-cam'
+
+        peek_result = results[0]['result']
+        g2_shape = peek_result['g2'].value.shape[0]
+        import numpy as np
+        g2_err = np.zeros(g2_shape)
+        g2_err_shape = g2_shape
+        lag_steps_shape = peek_result['lag_steps'].value.shape[0]
+        workflow = []
+        workflow_shape = len(workflow)
+
+        reduced_data_keys = {
+            'g2': {'source': source, 'dtype': 'number', 'shape': [g2_shape]},
+            'g2_err': {'source': source, 'dtype': 'number', 'shape': [g2_err_shape]},
+            'lag_steps': {'source': source, 'dtype': 'number', 'shape': [lag_steps_shape]},
+            'name': {'source': source, 'dtype': 'string', 'shape': []}, # todo -- shape
+             'workflow': {'source': source, 'dtype': 'string', 'shape': [workflow_shape]}
+         }
+        reduced_stream_name = 'reduced'
+        reduced_stream_bundle = run_bundle.compose_descriptor(data_keys=reduced_data_keys,
+                                                              name=reduced_stream_name)
+        yield 'descriptor', reduced_stream_bundle.descriptor_doc
+
+        # todo -- peek frame shape
+        frame_data_keys = {'frame': {'source': source, 'dtype': 'number', 'shape': []}}
+        frame_stream_name = 'primary'
+        frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
+                                                            name=frame_stream_name)
+        yield 'descriptor', frame_stream_bundle.descriptor_doc
+
+        # TODO -- repr the ROI(s) from the image
+        name = repr('a')
+
+        # todo -- store only paths? store the image data itself (memory...)
+        # frames = header.startdoc['paths']
+        frames = []
+        for frame in frames:
+            yield 'event', frame_stream_bundle.compose_event(
+                data={frame},
+                timestamps={timestamp}
+            )
 
         for result in results:
-            yield 'event', stream_bundle.compose_event(data={'image_series': result['name'],
-                                                             'g2': result['result']['g2'].value,
-                                                             'lag_steps': result['result']['lag_steps'].value,
-                                                             'name': result['name']},
-                                                       timestamps={'image_series': timestamp,
-                                                                   'g2': timestamp,
-                                                                   'lag_steps': timestamp,
-                                                                   'name': timestamp})
+            yield 'event', reduced_stream_bundle.compose_event(
+                data={'g2': result['result']['g2'].value,
+                      'g2_err': g2_err,
+                      'lag_steps': result['result']['lag_steps'].value,
+                      'name': roi,  # TODO update to roi
+                      'workflow': workflow},
+                timestamps={'g2': timestamp,
+                            'g2_err': timestamp,
+                            'lag_steps': timestamp,
+                            'name': timestamp,
+                            'workflow': workflow}
+            )
 
         yield 'stop', run_bundle.compose_stop()

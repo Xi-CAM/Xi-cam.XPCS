@@ -10,7 +10,12 @@ from xicam.plugins.DataHandlerPlugin import DataHandlerPlugin
 
 
 class APSXPCS(DataHandlerPlugin):
+    """
+    Handles ingestion of APS XPCS .hdf files.
 
+    Internally, these .hdf files will hold a reference to a .bin image file,
+    which will be loaded as well.
+    """
     name = 'APSXPCS'
     DEFAULT_EXTENTIONS = ['.hdf', '.h5']
 
@@ -20,8 +25,6 @@ class APSXPCS(DataHandlerPlugin):
 
     def __call__(self, data='', slc=0, **kwargs):
         h5 = h5py.File(self.path, 'r')
-        # if slc is None:
-        #     return np.zeros((1,100,100)).squeeze()
         if data == 'norm-0-g2':
             return h5['exchange'][data][:,:,slc].transpose()
         return h5['exchange'][data][slc]
@@ -60,45 +63,55 @@ class APSXPCS(DataHandlerPlugin):
         # TODO -- handle multiple paths
         return Path(paths[0]).resolve().stem
 
-    # TODO:
-    # -- what should the name be for the non-'primary' descriptor be???
-    # -- which data_keys are primary?
     @classmethod
     def _createDocument(cls, paths):
+        #TODO -- add frames after being able to read in bin images
 
         for path in paths:
             timestamp = time.time()
 
             run_bundle = event_model.compose_run()
             yield 'start', run_bundle.start_doc
-            source = 'APS XPCS'  # TODO -- find embedded source info?
-            result_data_keys = {
-                'g2': {'source': source, 'dtype': 'number', 'shape': []},
-                'lag_steps': {'source': source, 'dtype': 'number', 'shape': []},
-            }
-            frame_data_keys = {'frame': {'source': source, 'dtype': 'number', 'shape': []}}
-            result_stream_name = 'processed'
-            frame_stream_name = 'primary'
-            result_stream_bundle = run_bundle.compose_descriptor(data_keys=result_data_keys,
-                                                                 name=result_stream_name)
-            frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys, name=frame_stream_name)
 
+            source = 'APS XPCS'  # TODO -- find embedded source info?
+            frame_data_keys = {'frame': {'source': source, 'dtype': 'number', 'shape': []}}
+            frame_stream_name = 'primary'
+            frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
+                                                                name=frame_stream_name)
             yield 'descriptor', frame_stream_bundle.descriptor_doc
-            yield 'descriptor', result_stream_bundle.descriptor_doc
+
+            reduced_data_keys = {
+                'g2': {'source': source, 'dtype': 'number', 'shape': [61]},
+                'g2_err': {'source': source, 'dtype': 'number', 'shape': [61]},
+                'lag_steps': {'source': source, 'dtype': 'number', 'shape': [61]},
+                'name': {'source': source, 'dtype': 'string', 'shape': []}
+            }
+            result_stream_name = 'reduced'
+            reduced_stream_bundle = run_bundle.compose_descriptor(data_keys=reduced_data_keys,
+                                                                  name=result_stream_name)
+            yield 'descriptor', reduced_stream_bundle.descriptor_doc
 
             h5 = h5py.File(path, 'r')
             frames = []
-
             # TODO -- use the processed data timestamp?
             for frame in frames:
                 yield 'event', frame_stream_bundle.compose_event(data={'frame', frame},
                                                                  timestamps={'frame', timestamp})
+
             lag_steps = h5['exchange']['tau'][()]
-            for g2 in h5['exchange']['norm-0-g2'][()].T:
-                yield 'event', result_stream_bundle.compose_event(data={'g2': g2,
-                                                                        'lag_steps': lag_steps},
-                                                                  # TODO -- timestamps from h5?
-                                                                  timestamps={'g2': timestamp,
-                                                                              'lag_steps': timestamp})
+            roi_list = h5['xpcs']['dqlist'][()].squeeze()
+            for g2, err, roi in zip(h5['exchange']['norm-0-g2'][()].T,
+                                    h5['exchange']['norm-0-stderr'][()].T,
+                                    roi_list):
+                yield 'event', reduced_stream_bundle.compose_event(
+                    data={'g2': g2,
+                          'g2_err': err,
+                          'lag_steps': lag_steps,
+                          'name': f'q = {roi:.3g}'},
+                    # TODO -- timestamps from h5?
+                    timestamps={'g2': timestamp,
+                                'g2_err': timestamp,
+                                'lag_steps': timestamp,
+                                'name': timestamp})
 
             yield 'stop', run_bundle.compose_stop()
