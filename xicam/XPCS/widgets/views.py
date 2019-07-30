@@ -3,6 +3,7 @@ from qtpy.QtGui import QStandardItemModel, QStandardItem
 from qtpy.QtWidgets import QAbstractItemView, QDialog, QLineEdit, QListView, QTreeView, QVBoxLayout, QWidget
 
 import pyqtgraph as pg
+from pyqtgraph.graphicsItems.LegendItem import ItemSample
 import numpy as np
 
 # class ResultsView(QTreeView):
@@ -21,6 +22,22 @@ import numpy as np
 #   - e.g. if selectedItem(s) is checkable: toggle check
 #   - model item clicked
 # - should the view be editable?
+
+
+# For some reason, LegendItem.removeItem(ref) wasn't working, so this class stores the data name
+class CurveItemSample(ItemSample):
+    """
+    Provides a custom ItemSample for curve items (PlotItemData) in a plot.
+    """
+    def __init__(self, item, **kwargs):
+        self.name = kwargs.get('name', '')
+        super(CurveItemSample, self).__init__(item)
+
+    @property
+    def name(self):
+        return self.name
+
+
 class CorrelationView(QWidget):
     """
     Widget for viewing the correlation results.
@@ -47,7 +64,7 @@ class CorrelationView(QWidget):
         self.setLayout(layout)
 
         self.checkedItemIndexes = []
-        self._curves = []
+        self._curveItems = []
         self.model.itemChanged.connect(self.updatePlot)
 
     @property
@@ -58,11 +75,23 @@ class CorrelationView(QWidget):
     def legend(self):
         return self._legend
 
+    def clearPlot(self):
+        self.plot.clear()
+        self._clearLegend()
+        self._curveItems.clear()
+
+    def _clearLegend(self):
+        for curveItem in self._curveItems:
+            self.legend.removeItem(name=curveItem.name)
+        self.legend.hide()
+
     def results(self, dataKey):
         for index in self.checkedItemIndexes:
             yield index.data(Qt.UserRole)['data'][dataKey]
 
     def updatePlot(self, item: QStandardItem):
+        self.clearPlot()
+
         itemIndex = QPersistentModelIndex(item.index())
         if item.checkState():
             self.checkedItemIndexes.append(itemIndex)
@@ -74,25 +103,23 @@ class CorrelationView(QWidget):
         g2_err = list(self.results('g2_err'))
         lag_steps = list(self.results('lag_steps'))
         roi_list = list(self.results('name'))
-        self.plot.clear()
-        for curve in self._curves:
-            self.legend.removeItem(curve)
-        self._curves.clear()
+
         for roi in range(len(self.checkedItemIndexes)):
             yData = g2[roi].squeeze()
-            # Offset x axis by 1 to avoid log10(0) runtime warning at PlotDataItem.py:531
             xData = lag_steps[roi].squeeze()
+
             color = [float(roi) / len(self.checkedItemIndexes) * 255,
                      (1 - float(roi) / len(self.checkedItemIndexes)) * 255,
                      255]
             self.plotOpts['pen'] = color
             err = g2_err[roi].squeeze()
             self.plot.addItem(pg.ErrorBarItem(x=np.log10(xData), y=yData, top=err, bottom=err, **self.plotOpts))
+
             curve = self.plot.plot(x=xData, y=yData, **self.plotOpts)
-            self._curves.append(curve)
-
-            self.legend.addItem(curve, name=repr(roi_list[roi]))
-
+            curveItem = CurveItemSample(curve, name=roi_list[roi])
+            self._curveItems.append(curveItem)
+            self.legend.addItem(curveItem, curveItem.name)
+            self.legend.show()
 
     def createFigure(self):
         # TODO -- each event represents an ROI, which represents a grid item
