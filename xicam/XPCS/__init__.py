@@ -2,7 +2,7 @@ import pathlib
 import time
 from functools import partial
 
-import dill as pickle
+import cloudpickle as pickle
 import event_model
 from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 from pyqtgraph.parametertree import Parameter, ParameterTree
@@ -119,55 +119,49 @@ class XPCS(GUIPlugin):
         self.catalog = BlueskyInMemoryCatalog()
 
         # XPCS data model
-        self.resultsmodel = QStandardItemModel()
+        self.resultsModel = QStandardItemModel()
 
         # Input (raw) data model
-        self.headermodel = QStandardItemModel()
-        self.selectionmodel = QItemSelectionModel(self.headermodel)
+        self.headerModel = QStandardItemModel()
+        self.selectionModel = QItemSelectionModel(self.headerModel)
 
         # Widgets
-        self.calibrationsettings = pluginmanager.getPluginByName('xicam.SAXS.calibration',
+        self.calibrationSettings = pluginmanager.getPluginByName('xicam.SAXS.calibration',
                                                                  'SettingsPlugin').plugin_object
-        self.processor = XPCSProcessor()
-
-        # Toolbar
-        self.toolbar = QToolBar()
-        self.toolbar.addAction('Process', self.process)
 
         # Setup TabViews
-        self.rawtabview = TabView(self.headermodel,
+        self.rawTabView = TabView(self.headerModel,
                                   widgetcls=XPCSViewerPlugin,
-                                  selectionmodel=self.selectionmodel,
-                                  bindings=[(self.calibrationsettings.sigGeometryChanged, 'setGeometry')],
+                                  selectionmodel=self.selectionModel,
+                                  bindings=[(self.calibrationSettings.sigGeometryChanged, 'setGeometry')],
                                   geometry=self.getAI)
 
         # Setup correlation views
-        self.twotimeview = TwoTimeView()
-        self.twotimefileselection = FileSelectionView(self.headermodel, self.selectionmodel)
-        self.twotimeprocessor = TwoTimeProcessor()
-        self.twotimetoolbar = QToolBar()
-        self.twotimetoolbar.addAction('Process', self.processTwoTime)
-        self.onetimeview = OneTimeView()
-        self.onetimefileselection = FileSelectionView(self.headermodel, self.selectionmodel)
-        self.onetimeprocessor = OneTimeProcessor()
-        self.onetimetoolbar = QToolBar()
-        self.onetimetoolbar.addAction('Process', self.processOneTime)
-        self.onetimetoolbar.addAction('Figure', self.onetimeview.createFigure)
+        self.twoTimeView = TwoTimeView()
+        self.twoTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
+        self.twoTimeProcessor = TwoTimeProcessor()
+        self.twoTimeToolBar = QToolBar()
+        self.twoTimeToolBar.addAction('Process', self.processTwoTime)
+        self.oneTimeView = OneTimeView()
+        self.oneTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
+        self.oneTimeProcessor = OneTimeProcessor()
+        self.oneTimeToolBar = QToolBar()
+        self.oneTimeToolBar.addAction('Process', self.processOneTime)
+        self.oneTimeToolBar.addAction('Figure', self.oneTimeView.createFigure)
 
         self.placeholder = QLabel('correlation parameters')
 
-        self.stages = {'Raw': GUILayout(self.rawtabview,
-                                        # top=self.toolbar,
-                                        right=self.calibrationsettings.widget),
-                       '2-Time Correlation': GUILayout(self.twotimeview,
-                                                       top=self.twotimetoolbar,
-                                                       right=self.twotimefileselection,
-                                                       rightbottom=self.twotimeprocessor,
+        self.stages = {'Raw': GUILayout(self.rawTabView,
+                                        right=self.calibrationSettings.widget),
+                       '2-Time Correlation': GUILayout(self.twoTimeView,
+                                                       top=self.twoTimeToolBar,
+                                                       right=self.twoTimeFileSelection,
+                                                       rightbottom=self.twoTimeProcessor,
                                                        bottom=self.placeholder),
-                       '1-Time Correlation': GUILayout(self.onetimeview,
-                                                       top=self.onetimetoolbar,
-                                                       right=self.onetimefileselection,
-                                                       rightbottom=self.onetimeprocessor,
+                       '1-Time Correlation': GUILayout(self.oneTimeView,
+                                                       top=self.oneTimeToolBar,
+                                                       right=self.oneTimeFileSelection,
+                                                       rightbottom=self.oneTimeProcessor,
                                                        bottom=self.placeholder)
                        }
 
@@ -179,11 +173,11 @@ class XPCS(GUIPlugin):
     def appendHeader(self, header: NonDBHeader, **kwargs):
         item = QStandardItem(header.startdoc.get('sample_name', '????'))
         item.header = header
-        self.headermodel.appendRow(item)
-        self.selectionmodel.reset()
-        self.selectionmodel.setCurrentIndex(self.headermodel.index(self.headermodel.rowCount() - 1, 0),
+        self.headerModel.appendRow(item)
+        self.selectionModel.reset()
+        self.selectionModel.setCurrentIndex(self.headerModel.index(self.headerModel.rowCount() - 1, 0),
                                             QItemSelectionModel.Rows)
-        self.headermodel.dataChanged.emit(QModelIndex(), QModelIndex())
+        self.headerModel.dataChanged.emit(QModelIndex(), QModelIndex())
 
         paths = header.startdoc.get('paths')
         for path in paths:
@@ -197,78 +191,79 @@ class XPCS(GUIPlugin):
                     eventItem.setCheckable(True)
                     startItem.appendRow(eventItem)
                 # TODO -- properly add to view (one-time or 2-time, etc.)
-                self.onetimeview.model.invisibleRootItem().appendRow(startItem)
+                self.oneTimeView.model.invisibleRootItem().appendRow(startItem)
 
     def getAI(self):
         return None
 
     def currentheader(self):
-        return self.headermodel.itemFromIndex(self.selectionmodel.currentIndex()).header
+        return self.headerModel.itemFromIndex(self.selectionModel.currentIndex()).header
 
     def currentheaders(self):
-        selected_indices = self.selectionmodel.selectedIndexes()
+        selected_indices = self.selectionModel.selectedIndexes()
         headers = []
         for model_index in selected_indices:
-            headers.append(self.headermodel.itemFromIndex(model_index).header)
+            headers.append(self.headerModel.itemFromIndex(model_index).header)
         return headers
 
     def processOneTime(self):
-        self.process(self.onetimeprocessor,
-                     callback_slot=partial(self.saveResult, fileSelectionView=self.onetimefileselection),
-                     finished_slot=partial(self.createDocument, view=self.onetimeview))
+        self.process(self.oneTimeProcessor,
+                     callback_slot=partial(self.saveResult, fileSelectionView=self.oneTimeFileSelection),
+                     finished_slot=partial(self.createDocument, view=self.oneTimeView))
 
     def processTwoTime(self):
-        self.process(self.twotimeprocessor,
-                     callback_slot=partial(self.saveResult, fileSelectionView=self.twotimefileselection),
-                     finished_slot=partial(self.createDocument, view=self.twotimeview))
+        self.process(self.twoTimeProcessor,
+                     callback_slot=partial(self.saveResult, fileSelectionView=self.twoTimeFileSelection),
+                     finished_slot=partial(self.createDocument, view=self.twoTimeView))
 
     def process(self, processor: XPCSProcessor, **kwargs):
         if processor:
             workflow = processor.workflow
 
             data = [header.meta_array() for header in self.currentheaders()]
-            currentWidget = self.rawtabview.currentWidget()
+            currentWidget = self.rawTabView.currentWidget()
             labels = [currentWidget.poly_mask()] * len(data)
-            num_levels = [1] * len(data)
+            numLevels = [1] * len(data)
 
-            num_bufs = []
+            numBufs = []
             for i, _ in enumerate(data):
                 shape = data[i].shape[0]
                 # multi_tau_corr requires num_bufs to be even
                 if shape % 2:
                     shape += 1
-                num_bufs.append(shape)
+                numBufs.append(shape)
 
             if kwargs.get('callback_slot'):
-                callback_slot = kwargs['callback_slot']
+                callbackSlot = kwargs['callback_slot']
             else:
-                callback_slot = self.saveResult
+                callbackSlot = self.saveResult
             if kwargs.get('finished_slot'):
-                finished_slot = kwargs['finished_slot']
+                finishedSlot = kwargs['finished_slot']
             else:
-                finished_slot = self.createDocument
+                finishedSlot = self.createDocument
 
-            workflow_pickle = None# pickle.dumps(workflow)
+            # todo -> fix pickling: TypeError: can't pickle FixableSimpleParameter objects
+            workflowPickle = pickle.dumps(workflow)
             workflow.execute_all(None,
                                  data=data,
                                  labels=labels,
-                                 num_levels=num_levels,
-                                 num_bufs=num_bufs,
-                                 callback_slot=callback_slot,
-                                 finished_slot=partial(finished_slot,
+                                 num_levels=numLevels,
+                                 num_bufs=numBufs,
+                                 callback_slot=callbackSlot,
+                                 finished_slot=partial(finishedSlot,
                                                        header=self.currentheader(),
                                                        roi=repr(currentWidget),
-                                                       workflow=workflow_pickle))
+                                                       workflow=workflowPickle))
             # TODO -- should header be passed to callback_slot
             # (callback slot handle can handle multiple data items in data list)
 
     def saveResult(self, result, fileSelectionView=None):
         if fileSelectionView:
             data = dict()
-            if not fileSelectionView.correlationname.displayText():
-                data['name'] = fileSelectionView.correlationname.placeholderText()
+            if not fileSelectionView.correlationName.displayText():
+                data['name'] = fileSelectionView.correlationName.placeholderText()
             else:
-                data['name'] = fileSelectionView.correlationname.displayText()
+                data['name'] = fileSelectionView.correlationName.displayText()
             data['result'] = result
 
             self._results.append(data)
@@ -281,18 +276,18 @@ class XPCS(GUIPlugin):
         parentItem = QStandardItem(self._results[-1]['name'])
         for name, doc in self.catalog[key].read_canonical():
             if name == 'event':
-                resultsmodel = view.model
+                resultsModel = view.model
                 # item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
                 item = QStandardItem(repr(doc['data']['name']))
                 item.setData(doc, Qt.UserRole)
                 item.setCheckable(True)
                 parentItem.appendRow(item)
-                selectionModel = view.selectionmodel
+                selectionModel = view.selectionModel
                 selectionModel.reset()
                 selectionModel.setCurrentIndex(
-                    resultsmodel.index(resultsmodel.rowCount() - 1, 0), QItemSelectionModel.Rows)
+                    resultsModel.index(resultsModel.rowCount() - 1, 0), QItemSelectionModel.Rows)
                 selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
-        resultsmodel.appendRow(parentItem)
+        resultsModel.appendRow(parentItem)
         self._results = []
 
     def _createDocument(self, results, header, roi, workflow):
@@ -301,12 +296,12 @@ class XPCS(GUIPlugin):
         run_bundle = event_model.compose_run()
         yield 'start', run_bundle.start_doc
 
-        # TODO -- make sure g2_err is calculated and added to internal process documents
         # TODO -- make sure workflow pickles, or try dill / cloudpickle
         source = 'Xi-cam'
 
         peek_result = results[0]['result']
         g2_shape = peek_result['g2'].value.shape[0]
+        # TODO -- make sure g2_err is calculated and added to internal process documents
         import numpy as np
         g2_err = np.zeros(g2_shape)
         g2_err_shape = g2_shape

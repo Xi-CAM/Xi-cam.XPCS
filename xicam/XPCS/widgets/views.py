@@ -16,8 +16,6 @@ import numpy as np
 # - nice to have add abilities:
 #   - to show symbols
 #   - to show lines
-# - add legend (for curves)
-# - get calculated q
 # - might be nice to have selection model check/uncheck items
 #   - e.g. if selectedItem(s) is checkable: toggle check
 #   - model item clicked
@@ -33,10 +31,6 @@ class CurveItemSample(ItemSample):
         self.name = kwargs.get('name', '')
         super(CurveItemSample, self).__init__(item)
 
-    @property
-    def name(self):
-        return self.name
-
 
 class CorrelationView(QWidget):
     """
@@ -47,19 +41,20 @@ class CorrelationView(QWidget):
     def __init__(self, model):
         super(CorrelationView, self).__init__()
         self.model = model  # type: QStandardItemModel
-        self.resultslist = QTreeView(self)
-        self.resultslist.setHeaderHidden(True)
+        self.resultsList = QTreeView(self)
+        self.resultsList.setHeaderHidden(True)
+        self.resultsList.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
-        self.resultslist.setSelectionMode(QAbstractItemView.NoSelection)
+        self.resultsList.setSelectionMode(QAbstractItemView.NoSelection)
         self.plotOpts = dict()
         self._plot = pg.PlotWidget(**self.plotOpts)
         self._legend = pg.LegendItem(offset=[-1, 1])
         self.legend.setParentItem(self._plot.getPlotItem())
-        self.resultslist.setModel(self.model)
-        self.selectionmodel = self.resultslist.selectionModel()
+        self.resultsList.setModel(self.model)
+        self.selectionModel = self.resultsList.selectionModel()
 
         layout = QVBoxLayout()
-        layout.addWidget(self.resultslist)
+        layout.addWidget(self.resultsList)
         layout.addWidget(self._plot)
         self.setLayout(layout)
 
@@ -100,23 +95,23 @@ class CorrelationView(QWidget):
             self.checkedItemIndexes.remove(itemIndex)
 
         g2 = list(self.results('g2'))
-        g2_err = list(self.results('g2_err'))
-        lag_steps = list(self.results('lag_steps'))
-        roi_list = list(self.results('name'))
+        g2Err = list(self.results('g2_err'))
+        lagSteps = list(self.results('lag_steps'))
+        roiList = list(self.results('name'))
 
         for roi in range(len(self.checkedItemIndexes)):
             yData = g2[roi].squeeze()
-            xData = lag_steps[roi].squeeze()
+            xData = lagSteps[roi].squeeze()
 
             color = [float(roi) / len(self.checkedItemIndexes) * 255,
                      (1 - float(roi) / len(self.checkedItemIndexes)) * 255,
                      255]
             self.plotOpts['pen'] = color
-            err = g2_err[roi].squeeze()
+            err = g2Err[roi].squeeze()
             self.plot.addItem(pg.ErrorBarItem(x=np.log10(xData), y=yData, top=err, bottom=err, **self.plotOpts))
 
             curve = self.plot.plot(x=xData, y=yData, **self.plotOpts)
-            curveItem = CurveItemSample(curve, name=roi_list[roi])
+            curveItem = CurveItemSample(curve, name=roiList[roi])
             self._curveItems.append(curveItem)
             self.legend.addItem(curveItem, curveItem.name)
             self.legend.show()
@@ -133,7 +128,7 @@ class CorrelationView(QWidget):
 
         figure = plt.figure()
         grid_spec = gridspec.GridSpec(3, 3)
-        selection = self.selectionmodel.selection()
+        selection = self.selectionModel.selection()
         legend = []
         for index in selection.indexes():
             legend.append(index.data(Qt.DisplayRole))
@@ -186,30 +181,30 @@ class FileSelectionView(QWidget):
         """
         super(FileSelectionView, self).__init__()
         # self.parameters = ParameterTree()
-        self.filelistview = QListView()
-        self.correlationname = QLineEdit()
-        self.correlationname.setPlaceholderText('Name of result')
+        self.fileListView = QListView()
+        self.correlationName = QLineEdit()
+        self.correlationName.setPlaceholderText('Name of result')
 
         layout = QVBoxLayout()
-        layout.addWidget(self.filelistview)
-        layout.addWidget(self.correlationname)
+        layout.addWidget(self.fileListView)
+        layout.addWidget(self.correlationName)
         self.setLayout(layout)
 
-        self.headermodel = headermodel
-        self.selectionmodel = selectionmodel
-        self.filelistview.setModel(headermodel)
-        self.filelistview.setSelectionModel(selectionmodel)
-        self.filelistview.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.filelistview.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.headerModel = headermodel
+        self.selectionModel = selectionmodel
+        self.fileListView.setModel(headermodel)
+        self.fileListView.setSelectionModel(selectionmodel)
+        self.fileListView.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.fileListView.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
         # Make sure when the tabview selection model changes, the file list
         # current item updates
-        self.selectionmodel.currentChanged.connect(
+        self.selectionModel.currentChanged.connect(
             lambda current, _:
-                self.filelistview.setCurrentIndex(current)
+                self.fileListView.setCurrentIndex(current)
         )
 
-        self.selectionmodel.currentChanged.connect(
+        self.selectionModel.currentChanged.connect(
             lambda current, _:
-                self.correlationname.setPlaceholderText(current.data())
+                self.correlationName.setPlaceholderText(current.data())
         )
