@@ -13,6 +13,7 @@ from qtpy.QtWidgets import *
 
 from xicam.core import msg
 from xicam.core.data import NonDBHeader
+from xicam.gui import static
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from xicam.gui.widgets.tabview import TabView
 from xicam.plugins import GUILayout, GUIPlugin
@@ -141,28 +142,30 @@ class XPCS(GUIPlugin):
         self.twoTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
         self.twoTimeProcessor = TwoTimeProcessor()
         self.twoTimeToolBar = QToolBar()
-        self.twoTimeToolBar.addAction('Process', self.processTwoTime)
+        self.twoTimeToolBar.addAction(QIcon(static.path('icons/run.png')), 'Process', self.processTwoTime)
+        self.twoTimeToolBar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+
         self.oneTimeView = OneTimeView()
         self.oneTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
         self.oneTimeProcessor = OneTimeProcessor()
         self.oneTimeToolBar = QToolBar()
-        self.oneTimeToolBar.addAction('Process', self.processOneTime)
-        self.oneTimeToolBar.addAction('Figure', self.oneTimeView.createFigure)
+        self.oneTimeToolBar.addAction(QIcon(static.path('icons/run.png')), 'Process', self.processOneTime)
+        self.oneTimeToolBar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        self.placeholder = QLabel('correlation parameters')
+        # self.placeholder = QLabel('correlation parameters')
 
         self.stages = {'Raw': GUILayout(self.rawTabView,
                                         right=self.calibrationSettings.widget),
                        '2-Time Correlation': GUILayout(self.twoTimeView,
                                                        top=self.twoTimeToolBar,
                                                        right=self.twoTimeFileSelection,
-                                                       rightbottom=self.twoTimeProcessor,
-                                                       bottom=self.placeholder),
+                                                       rightbottom=self.twoTimeProcessor,),
+                                                       # bottom=self.placeholder),
                        '1-Time Correlation': GUILayout(self.oneTimeView,
                                                        top=self.oneTimeToolBar,
                                                        right=self.oneTimeFileSelection,
-                                                       rightbottom=self.oneTimeProcessor,
-                                                       bottom=self.placeholder)
+                                                       rightbottom=self.oneTimeProcessor,)
+                                                       # bottom=self.placeholder)
                        }
 
         # TODO -- improve result caching
