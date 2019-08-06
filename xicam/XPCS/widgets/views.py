@@ -111,39 +111,11 @@ class CorrelationView(QWidget):
             self.plot.addItem(pg.ErrorBarItem(x=np.log10(xData), y=yData, top=err, bottom=err, **self.plotOpts))
 
             curve = self.plot.plot(x=xData, y=yData, **self.plotOpts)
-            curveItem = CurveItemSample(curve, name=roiList[roi])
+            name = roiList[roi]
+            curveItem = CurveItemSample(curve, name=name)
             self._curveItems.append(curveItem)
             self.legend.addItem(curveItem, curveItem.name)
             self.legend.show()
-
-    def createFigure(self):
-        # TODO -- each event represents an ROI, which represents a grid item
-        # TODO -- each file will show a curve in each grid item
-        # -- e.g. 3 files, 5 ROIS will show 5 grid items, each with 3 curves
-        import matplotlib.pyplot as plt
-        import matplotlib.gridspec as gridspec
-
-        # TODO -- hook in the qslicing
-        qslice = 1
-
-        figure = plt.figure()
-        grid_spec = gridspec.GridSpec(3, 3)
-        selection = self.selectionModel.selection()
-        legend = []
-        for index in selection.indexes():
-            legend.append(index.data(Qt.DisplayRole))
-        for q in range(qslice):
-            ax = figure.add_subplot(grid_spec[q % 3, q // 3], label=q)
-            ax.set_xscale('log')
-            g2 = self.results(selection, 'g2')
-            lag_steps = self.results(selection, 'lag_steps')
-            for step, result in enumerate(g2):
-                yData = result.squeeze()
-                xData = lag_steps[step].squeeze()
-                plt.plot(xData, yData, 'D-', fillstyle='none')
-            ax.legend(legend)
-
-        plt.show()  # TODO -- "QCoreApplication::exec: The event loop is already running"
 
 
 class OneTimeView(CorrelationView):
