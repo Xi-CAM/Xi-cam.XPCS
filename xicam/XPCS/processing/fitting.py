@@ -34,6 +34,7 @@ class FitScatteringFactor(ProcessingPlugin):
     correlation_threshold = Input("threshold defining which g2 values to fit", type=float, default=1.5)
     relaxation_rate = Output(description="relaxation time associated with the samples dynamics",
                              type=float)
+    fit_curve = Output(description="fitted model of the g2 curve", type=np.ndarray)
 
     def evaluate(self):
         relaxation_rate = 0.01  # Some initial guess
@@ -45,4 +46,5 @@ class FitScatteringFactor(ProcessingPlugin):
         print(fitter.fit_info['message'])
         # print(fitter.fit_info)
         self.relaxation_rate.value = fit.relaxation_rate.value
+        self.fit_curve.value = fit(self.lag_steps.value)
         print(f'\ngamma: {fit.relaxation_rate.value}\n')

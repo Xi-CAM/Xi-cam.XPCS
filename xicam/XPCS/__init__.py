@@ -16,6 +16,7 @@ from xicam.core.data import NonDBHeader
 from xicam.gui import static
 from xicam.gui.widgets.imageviewmixins import PolygonROI
 from xicam.gui.widgets.tabview import TabView
+from xicam.gui.widgets.ROI import BetterROI
 from xicam.plugins import GUILayout, GUIPlugin
 from xicam.plugins import manager as pluginmanager
 from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPluginBase
@@ -225,6 +226,7 @@ class XPCS(GUIPlugin):
 
             data = [header.meta_array() for header in self.currentheaders()]
             currentWidget = self.rawTabView.currentWidget()
+            rois = [item for item in currentWidget.view.items if isinstance(item, BetterROI)]
             labels = [currentWidget.poly_mask()] * len(data)
             numLevels = [1] * len(data)
 
@@ -255,7 +257,7 @@ class XPCS(GUIPlugin):
                                  callback_slot=callbackSlot,
                                  finished_slot=partial(finishedSlot,
                                                        header=self.currentheader(),
-                                                       roi=repr(currentWidget),
+                                                       roi=repr(rois[0]),
                                                        workflow=workflowPickle))
             # TODO -- should header be passed to callback_slot
             # (callback slot handle can handle multiple data items in data list)
@@ -281,7 +283,7 @@ class XPCS(GUIPlugin):
             if name == 'event':
                 resultsModel = view.model
                 # item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-                item = QStandardItem(repr(doc['data']['name']))
+                item = QStandardItem(doc['data']['name'])
                 item.setData(doc, Qt.UserRole)
                 item.setCheckable(True)
                 parentItem.appendRow(item)
@@ -316,6 +318,7 @@ class XPCS(GUIPlugin):
             'g2': {'source': source, 'dtype': 'number', 'shape': [g2_shape]},
             'g2_err': {'source': source, 'dtype': 'number', 'shape': [g2_err_shape]},
             'lag_steps': {'source': source, 'dtype': 'number', 'shape': [lag_steps_shape]},
+            'fit_curve': {'source': source, 'dtype': 'number', 'shape': [lag_steps_shape]},
             'name': {'source': source, 'dtype': 'string', 'shape': []}, # todo -- shape
              'workflow': {'source': source, 'dtype': 'string', 'shape': [workflow_shape]}
          }
@@ -331,8 +334,6 @@ class XPCS(GUIPlugin):
                                                             name=frame_stream_name)
         yield 'descriptor', frame_stream_bundle.descriptor_doc
 
-        # TODO -- repr the ROI(s) from the image
-        name = repr('a')
 
         # todo -- store only paths? store the image data itself (memory...)
         # frames = header.startdoc['paths']
@@ -348,11 +349,13 @@ class XPCS(GUIPlugin):
                 data={'g2': result['result']['g2'].value,
                       'g2_err': g2_err,
                       'lag_steps': result['result']['lag_steps'].value,
+                      'fit_curve': result['result']['fit_curve'].value,
                       'name': roi,  # TODO update to roi
                       'workflow': workflow},
                 timestamps={'g2': timestamp,
                             'g2_err': timestamp,
                             'lag_steps': timestamp,
+                            'fit_curve': timestamp,
                             'name': timestamp,
                             'workflow': workflow}
             )

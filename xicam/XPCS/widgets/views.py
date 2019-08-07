@@ -1,5 +1,5 @@
 from qtpy.QtCore import Qt, QItemSelection, QPersistentModelIndex
-from qtpy.QtGui import QStandardItemModel, QStandardItem
+from qtpy.QtGui import QStandardItemModel, QStandardItem, QPen
 from qtpy.QtWidgets import QAbstractItemView, QDialog, QLineEdit, QListView, QTreeView, QVBoxLayout, QWidget
 
 import pyqtgraph as pg
@@ -84,6 +84,12 @@ class CorrelationView(QWidget):
         for index in self.checkedItemIndexes:
             yield index.data(Qt.UserRole)['data'][dataKey]
 
+    def parentItemSet(self):
+        parents = set()
+        for index in self.checkedItemIndexes:
+            parents.add(QPersistentModelIndex(index.parent()))
+        return parents
+
     def updatePlot(self, item: QStandardItem):
         self.clearPlot()
 
@@ -97,6 +103,7 @@ class CorrelationView(QWidget):
         g2 = list(self.results('g2'))
         g2Err = list(self.results('g2_err'))
         lagSteps = list(self.results('lag_steps'))
+        fitCurve = list(self.results('fit_curve'))
         roiList = list(self.results('name'))
 
         for roi in range(len(self.checkedItemIndexes)):
@@ -111,10 +118,17 @@ class CorrelationView(QWidget):
             self.plot.addItem(pg.ErrorBarItem(x=np.log10(xData), y=yData, top=err, bottom=err, **self.plotOpts))
 
             curve = self.plot.plot(x=xData, y=yData, **self.plotOpts)
+            opts = self.plotOpts.copy()
+            opts['pen'] = pg.mkPen(self.plotOpts['pen'])  # type: QPen
+            opts['pen'].setStyle(Qt.DashLine)
+            fit_curve = self.plot.plot(x=xData, y=fitCurve[roi].squeeze(), **opts)
             name = roiList[roi]
             curveItem = CurveItemSample(curve, name=name)
+            fitCurveItem = CurveItemSample(fit_curve, name=f'{name} (fit)')
             self._curveItems.append(curveItem)
+            self._curveItems.append(fitCurveItem)
             self.legend.addItem(curveItem, curveItem.name)
+            self.legend.addItem(fitCurveItem, fitCurveItem.name)
             self.legend.show()
 
 
