@@ -84,6 +84,7 @@ class APSXPCS(DataHandlerPlugin):
                 'g2': {'source': source, 'dtype': 'number', 'shape': [61]},
                 'g2_err': {'source': source, 'dtype': 'number', 'shape': [61]},
                 'lag_steps': {'source': source, 'dtype': 'number', 'shape': [61]},
+                'fit_curve': {'source': source, 'dtype': 'number', 'shape': [61]},
                 'name': {'source': source, 'dtype': 'string', 'shape': []}
             }
             result_stream_name = 'reduced'
@@ -100,18 +101,21 @@ class APSXPCS(DataHandlerPlugin):
 
             lag_steps = h5['exchange']['tau'][()]
             roi_list = h5['xpcs']['dqlist'][()].squeeze()
-            for g2, err, roi in zip(h5['exchange']['norm-0-g2'][()].T,
+            for g2, err, fit_curve, roi in zip(h5['exchange']['norm-0-g2'][()].T,
                                     h5['exchange']['norm-0-stderr'][()].T,
+                                    h5['exchange']['g2avgFIT1'][()].T,
                                     roi_list):
                 yield 'event', reduced_stream_bundle.compose_event(
                     data={'g2': g2,
                           'g2_err': err,
                           'lag_steps': lag_steps,
+                          'fit_curve': fit_curve,
                           'name': f'q = {roi:.3g}'},
                     # TODO -- timestamps from h5?
                     timestamps={'g2': timestamp,
                                 'g2_err': timestamp,
                                 'lag_steps': timestamp,
+                                'fit_curve': timestamp,
                                 'name': timestamp})
 
             yield 'stop', run_bundle.compose_stop()
