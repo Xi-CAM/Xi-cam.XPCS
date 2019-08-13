@@ -1,7 +1,8 @@
-from xicam.plugins import ProcessingPlugin, Input, Output, InputOutput
 import numpy as np
 import skbeam.core.correlation as corr
-from astropy.modeling import fitting, Fittable1DModel, Parameter
+from astropy.modeling import Fittable1DModel, Parameter, fitting
+
+from xicam.plugins import Input, InputOutput, Output, ProcessingPlugin
 
 
 class ScatteringModel(Fittable1DModel):
@@ -25,26 +26,37 @@ class ScatteringModel(Fittable1DModel):
 
 class FitScatteringFactor(ProcessingPlugin):
     name = "Fit Scattering Factor"
-    g2 = InputOutput(description="normalized intensity-intensity time autocorrelation", type=np.ndarray, visible=False)
-    lag_steps = InputOutput(description="delay time", type=np.ndarray, visible=False)
+
     beta = Input(description="optical contrast (speckle contrast), a sample-independent beamline parameter",
-                  type=float, name="speckle contrast", default=1.0)
+                 type=float,
+                 name="speckle contrast",
+                 default=1.0)
     baseline = Input(description="baseline of one time correlation equal to one for ergodic samples",
-                     type=float, default=1.0)
-    correlation_threshold = Input("threshold defining which g2 values to fit", type=float, default=1.5)
+                     type=float,
+                     default=1.0)
+    correlation_threshold = Input("threshold defining which g2 values to fit",
+                                  type=float,
+                                  default=1.5)
+
+    g2 = InputOutput(description="normalized intensity-intensity time autocorrelation",
+                     type=np.ndarray,
+                     visible=False)
+    lag_steps = InputOutput(description="delay time",
+                            type=np.ndarray,
+                            visible=False)
+
+    fit_curve = Output(description="fitted model of the g2 curve",
+                       type=np.ndarray)
     relaxation_rate = Output(description="relaxation time associated with the samples dynamics",
                              type=float)
-    fit_curve = Output(description="fitted model of the g2 curve", type=np.ndarray)
 
     def evaluate(self):
         relaxation_rate = 0.01  # Some initial guess
         model = ScatteringModel(self.beta.value, self.baseline.value, relaxation_rate=relaxation_rate)
         fitter = fitting.SLSQPLSQFitter()
         threshold = min(len(self.lag_steps.value), np.argmax(self.g2.value < self.correlation_threshold.value))
+
         fit = fitter(model, self.lag_steps.value[:threshold], self.g2.value[:threshold])
-        # fit = fitter(model, self.lag_steps.value, self.g2.value)
-        print(fitter.fit_info['message'])
-        # print(fitter.fit_info)
+
         self.relaxation_rate.value = fit.relaxation_rate.value
         self.fit_curve.value = fit(self.lag_steps.value)
-        print(f'\ngamma: {fit.relaxation_rate.value}\n')
