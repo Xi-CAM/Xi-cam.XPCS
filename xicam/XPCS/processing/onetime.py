@@ -1,6 +1,7 @@
-from xicam.plugins import ProcessingPlugin, Input, Output, InOut
-import skbeam.core.correlation as corr
 import numpy as np
+import skbeam.core.correlation as corr
+
+from xicam.plugins import InOut, Input, Output, ProcessingPlugin
 
 
 class OneTimeCorrelation(ProcessingPlugin):
