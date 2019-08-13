@@ -1,25 +1,9 @@
-from qtpy.QtCore import Qt, QItemSelection, QPersistentModelIndex
-from qtpy.QtGui import QStandardItemModel, QStandardItem, QPen
-from qtpy.QtWidgets import QAbstractItemView, QDialog, QLineEdit, QListView, QTreeView, QVBoxLayout, QWidget
-
+import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.graphicsItems.LegendItem import ItemSample
-import numpy as np
-
-# class ResultsView(QTreeView):
-#
-#     def __init__(self, parent=None):
-#         super(ResultsView, self).__init__(parent)
-
-# TODO
-# - update 'random' color scheme
-# - nice to have add abilities:
-#   - to show symbols
-#   - to show lines
-# - might be nice to have selection model check/uncheck items
-#   - e.g. if selectedItem(s) is checkable: toggle check
-#   - model item clicked
-# - should the view be editable?
+from qtpy.QtCore import QItemSelection, QPersistentModelIndex, Qt
+from qtpy.QtGui import QPen, QStandardItem, QStandardItemModel
+from qtpy.QtWidgets import QAbstractItemView, QDialog, QLineEdit, QListView, QTreeView, QVBoxLayout, QWidget
 
 
 # For some reason, LegendItem.removeItem(ref) wasn't working, so this class stores the data name
@@ -32,6 +16,13 @@ class CurveItemSample(ItemSample):
         super(CurveItemSample, self).__init__(item)
 
 
+# TODO
+# - nice to have add abilities:
+#   - to show symbols
+#   - to show lines
+# - might be nice to have selection model check/uncheck items
+#   - e.g. if selectedItem(s) is checkable: toggle check
+#   - model item clicked
 class CorrelationView(QWidget):
     """
     Widget for viewing the correlation results.
