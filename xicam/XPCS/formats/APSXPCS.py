@@ -6,6 +6,7 @@ import event_model
 import h5py
 import numpy as np
 
+from xicam.core.msg import notifyMessage, WARNING
 from xicam.plugins.DataHandlerPlugin import DataHandlerPlugin
 
 
@@ -24,6 +25,7 @@ class APSXPCS(DataHandlerPlugin):
         self.path = path
 
     def __call__(self, data='', slc=0, **kwargs):
+        # TODO -- change to show image data once image data is being ingested
         h5 = h5py.File(self.path, 'r')
         if data == 'norm-0-g2':
             return h5['exchange'][data][:,:,slc].transpose()
@@ -31,11 +33,15 @@ class APSXPCS(DataHandlerPlugin):
 
     @classmethod
     def ingest(cls, paths):
-        # update created document to store list of descriptors and list of events
         updated_doc = dict()
-        # TODO -- update for multiple paths
+        # TODO -- update for multiple paths (pending dbheader interface)
+        if len(paths) > 1:
+            paths = [paths[0]]
+            message = 'Opening multiple already-processed data sources is not yet supported. '
+            message += f'Opening the first image, {paths[0]}...'
+            notifyMessage(message, level=WARNING)
+            print(f'PATHS: {paths}')
         for name, doc in cls._createDocument(paths):
-            #     print(name)
             if name == 'start':
                 updated_doc[name] = doc
                 # TODO -- should 'sample_name' and 'paths' be something different?
@@ -65,8 +71,7 @@ class APSXPCS(DataHandlerPlugin):
 
     @classmethod
     def _createDocument(cls, paths):
-        #TODO -- add frames after being able to read in bin images
-
+        # TODO -- add frames after being able to read in bin images
         for path in paths:
             timestamp = time.time()
 
@@ -80,6 +85,7 @@ class APSXPCS(DataHandlerPlugin):
                                                                 name=frame_stream_name)
             yield 'descriptor', frame_stream_bundle.descriptor_doc
 
+            # 'name' is used as an identifier for results when plotting
             reduced_data_keys = {
                 'g2': {'source': source, 'dtype': 'number', 'shape': [61]},
                 'g2_err': {'source': source, 'dtype': 'number', 'shape': [61]},
