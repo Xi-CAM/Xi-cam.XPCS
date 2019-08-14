@@ -23,12 +23,12 @@ class APSXPCS(DataHandlerPlugin):
         super(APSXPCS, self).__init__()
         self.path = path
 
-    def __call__(self, data='', slc=0, **kwargs):
+    def __call__(self, data_key='', slc=0, **kwargs):
         # TODO -- change to show image data once image data is being ingested
         h5 = h5py.File(self.path, 'r')
-        if data == 'norm-0-g2':
-            return h5['exchange'][data][:,:,slc].transpose()
-        return h5['exchange'][data][slc]
+        if data_key == 'norm-0-g2':
+            return h5['exchange'][data_key][:,:,slc].transpose()
+        return h5['exchange'][data_key][slc]
 
     @classmethod
     def ingest(cls, paths):
