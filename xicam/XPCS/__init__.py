@@ -182,13 +182,18 @@ class XPCS(GUIPlugin):
                                             QItemSelectionModel.Rows)
         self.headerModel.dataChanged.emit(QModelIndex(), QModelIndex())
 
+        # Load any reduced (processed) data
+        reduced = False
+        for descriptor in header.descriptordocs:
+            if descriptor['name'] == 'reduced':
+                reduced = True
+                break
         paths = header.startdoc.get('paths')
         for path in paths:
-            if path and pathlib.Path(path).suffix == '.hdf':
+            if reduced:
                 startItem = QStandardItem(header.startdoc.get('sample_name', '??'))
                 eventlist = header.eventdocs
                 for event in eventlist:
-                    # repr(event['data']['name']
                     eventItem = QStandardItem(event['data']['name'])
                     eventItem.setData(event, Qt.UserRole)
                     eventItem.setCheckable(True)
