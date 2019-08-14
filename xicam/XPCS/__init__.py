@@ -251,7 +251,6 @@ class XPCS(GUIPlugin):
             else:
                 finishedSlot = self.createDocument
 
-            # todo -> fix pickling: TypeError: can't pickle FixableSimpleParameter objects
             workflowPickle = pickle.dumps(workflow)
             workflow.execute_all(None,
                                  data=data,
