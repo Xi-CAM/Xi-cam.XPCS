@@ -15,14 +15,13 @@ from xicam.core import msg
 from xicam.core.data import NonDBHeader
 from xicam.gui import static
 from xicam.gui.widgets.imageviewmixins import PolygonROI
-from xicam.gui.widgets.tabview import TabView
 from xicam.gui.widgets.ROI import BetterROI
+from xicam.gui.widgets.tabview import TabView
 from xicam.plugins import GUILayout, GUIPlugin
 from xicam.plugins import manager as pluginmanager
 from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPluginBase
 
-from .widgets.views import (CorrelationView, FileSelectionView, OneTimeView,
-                            TwoTimeView)
+from .widgets.views import CorrelationView, FileSelectionView, OneTimeView, TwoTimeView
 from .workflows import FourierAutocorrelator, OneTime, TwoTime
 
 
