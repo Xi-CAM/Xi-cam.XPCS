@@ -1,12 +1,11 @@
-from pathlib import Path
 import time
+from pathlib import Path
 
-from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 import event_model
 import h5py
-import numpy as np
+from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 
-from xicam.core.msg import notifyMessage, WARNING
+from xicam.core.msg import WARNING, notifyMessage
 from xicam.plugins.DataHandlerPlugin import DataHandlerPlugin
 
 
