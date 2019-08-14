@@ -27,6 +27,13 @@ class ScatteringModel(Fittable1DModel):
 class FitScatteringFactor(ProcessingPlugin):
     name = "Fit Scattering Factor"
 
+    g2 = InputOutput(description="normalized intensity-intensity time autocorrelation",
+                     type=np.ndarray,
+                     visible=False)
+    lag_steps = InputOutput(description="delay time",
+                            type=np.ndarray,
+                            visible=False)
+
     beta = Input(description="optical contrast (speckle contrast), a sample-independent beamline parameter",
                  type=float,
                  name="speckle contrast",
@@ -37,13 +44,6 @@ class FitScatteringFactor(ProcessingPlugin):
     correlation_threshold = Input("threshold defining which g2 values to fit",
                                   type=float,
                                   default=1.5)
-
-    g2 = InputOutput(description="normalized intensity-intensity time autocorrelation",
-                     type=np.ndarray,
-                     visible=False)
-    lag_steps = InputOutput(description="delay time",
-                            type=np.ndarray,
-                            visible=False)
 
     fit_curve = Output(description="fitted model of the g2 curve",
                        type=np.ndarray)
