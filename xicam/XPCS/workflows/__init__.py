@@ -1,8 +1,9 @@
+from xicam.core.execution import Workflow
 from xicam.plugins import ProcessingPlugin
-from ..processing.onetime import OneTimeCorrelation
+
 from ..processing.fitting import FitScatteringFactor
 from ..processing.fourierautocorrelator import FourierCorrelation
-from xicam.core.execution import Workflow
+from ..processing.onetime import OneTimeCorrelation
 
 
 class XPCSWorkflow(Workflow):
@@ -32,4 +33,3 @@ class FourierAutocorrelator(XPCSWorkflow):
         super(FourierAutocorrelator, self).__init__()
         fourier = FourierCorrelation()
         self.addProcess(fourier)
-
