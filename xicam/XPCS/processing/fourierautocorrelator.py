@@ -5,12 +5,12 @@ import numpy as np
 
 
 class FourierCorrelation(ProcessingPlugin):
-    data = Input(description='Array of two or more dimensions.', type=np.ndarray)
+    data = Input(description='Array of two or more dimensions.', type=np.ndarray, visible=False)
 
     labels = Input(description="""Labeled array of the same shape as the image stack.
         Each ROI is represented by sequential integers starting at one.  For
         example, if you have four ROIs, they must be labeled 1, 2, 3,
-        4. Background is labeled as 0""", type=np.array)
+        4. Background is labeled as 0""", type=np.ndarray, visible=False)
 
     g2 = Output(description="""the normalized correlation shape is (len(lag_steps), num_rois)""", type=np.array)
 
