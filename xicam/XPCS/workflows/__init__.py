@@ -4,6 +4,7 @@ from xicam.plugins import ProcessingPlugin
 from ..processing.fitting import FitScatteringFactor
 from ..processing.fourierautocorrelator import FourierCorrelation
 from ..processing.onetime import OneTimeCorrelation
+from ..processing.twotime import TwoTimeCorrelation
 
 
 class XPCSWorkflow(Workflow):
@@ -12,6 +13,10 @@ class XPCSWorkflow(Workflow):
 
 class TwoTime(XPCSWorkflow):
     name = '2-Time Correlation'
+
+    def __init__(self):
+        super(TwoTime, self).__init__()
+        self.addProcess(TwoTimeCorrelation())
 
 
 class OneTime(XPCSWorkflow):
