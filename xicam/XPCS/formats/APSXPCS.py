@@ -1,11 +1,12 @@
 import time
 from pathlib import Path
+from typing import Dict
 
 import event_model
 import h5py
 from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 
-from xicam.core.msg import WARNING, notifyMessage
+from xicam.core.msg import WARNING, notifyMessage, logError, logMessage
 from xicam.plugins.DataHandlerPlugin import DataHandlerPlugin
 
 
@@ -69,6 +70,41 @@ class APSXPCS(DataHandlerPlugin):
         return Path(paths[0]).resolve().stem
 
     @classmethod
+    def _find_datasets(cls, dataset_shape_indexes: Dict, h5: h5py.File):
+        """
+        Finds the HDF5 datasets based on the HDF5 paths in `dataset_shape_indexes`, and determines and stores the number
+        of records for each of these datasets.
+
+        Parameters
+        ----------
+        dataset_shape_indexes
+            Dict with 'h5group/h5dataset' as keys and the shape index to use when determining the number of records
+            in the dataset.
+        h5
+            The h5 file object.
+
+        Returns
+        -------
+        dict
+            Dictionary of the h5 dataset keys with values:
+                dataset - the HDF5 dataset object
+                num_records - the number of records (items) in each dataset
+
+        """
+        dataset_sizes = dict()
+        for key, shape_index in dataset_shape_indexes.items():
+            group = key.split('/')[0]
+            dataset = key.split('/')[1]
+            try:
+                dataset_sizes[dataset] = {
+                    'dataset': h5[group][dataset],
+                    'num_records': [h5[group][dataset].shape[shape_index]],
+                }
+            except KeyError as ex:
+                logMessage(f"[{key}] not found while ingesting [{h5.filename}].")
+        return dataset_sizes
+
+    @classmethod
     def _createDocument(cls, paths):
         # TODO -- add frames after being able to read in bin images
         for path in paths:
@@ -84,43 +120,61 @@ class APSXPCS(DataHandlerPlugin):
                                                                 name=frame_stream_name)
             yield 'descriptor', frame_stream_bundle.descriptor_doc
 
-            # 'name' is used as an identifier for results when plotting
-            reduced_data_keys = {
-                'g2': {'source': source, 'dtype': 'number', 'shape': [61]},
-                'g2_err': {'source': source, 'dtype': 'number', 'shape': [61]},
-                'lag_steps': {'source': source, 'dtype': 'number', 'shape': [61]},
-                'fit_curve': {'source': source, 'dtype': 'number', 'shape': [61]},
-                'name': {'source': source, 'dtype': 'string', 'shape': []}
+            h5 = h5py.File(path, 'r')
+
+            # Define the keys we want to ingest here; they don't necessarily have to exist
+            datasets_shape_indexes = {
+                'exchange/norm-0-g2': 0,
+                'exchange/norm-0-stderr': 0,
+                'exchange/tau': -1,  # tau shape is transposed
+                'exchange/g2avgFIT1': 0,
+                'xpcs/dqlist': 0
             }
-            result_stream_name = 'reduced'
+
+            # Grab the HDF5 datasets and their associated sizes, size being the number of items in the dataset array
+            # (e.g. grab the 'norm-0-g2' dataset,
+            datasets_and_sizes = cls._find_datasets(datasets_shape_indexes, h5)
+            exchange_transpose = ['norm-0-g2', 'norm-0-stderr', 'g2avgFIT1']
+
+            reduced_data_keys = dict()
+            for dataset in datasets_and_sizes:
+                try:
+                    reduced_data_keys[dataset] = {
+                        'source': source,
+                        'dtype': 'number',
+                        'shape': datasets_and_sizes[dataset]['num_records'],
+                    }
+                except Exception as ex:
+                    logError(ex)
+
+            result_stream_name = '1-Time'
             reduced_stream_bundle = run_bundle.compose_descriptor(data_keys=reduced_data_keys,
                                                                   name=result_stream_name)
             yield 'descriptor', reduced_stream_bundle.descriptor_doc
 
-            h5 = h5py.File(path, 'r')
             frames = []
             # TODO -- use the processed data timestamp?
             for frame in frames:
                 yield 'event', frame_stream_bundle.compose_event(data={'frame', frame},
                                                                  timestamps={'frame', timestamp})
 
-            lag_steps = h5['exchange']['tau'][()]
-            roi_list = h5['xpcs']['dqlist'][()].squeeze()
-            for g2, err, fit_curve, roi in zip(h5['exchange']['norm-0-g2'][()].T,
-                                    h5['exchange']['norm-0-stderr'][()].T,
-                                    h5['exchange']['g2avgFIT1'][()].T,
-                                    roi_list):
-                yield 'event', reduced_stream_bundle.compose_event(
-                    data={'g2': g2,
-                          'g2_err': err,
-                          'lag_steps': lag_steps,
-                          'fit_curve': fit_curve,
-                          'name': f'q = {roi:.3g}'},
-                    # TODO -- timestamps from h5?
-                    timestamps={'g2': timestamp,
-                                'g2_err': timestamp,
-                                'lag_steps': timestamp,
-                                'fit_curve': timestamp,
-                                'name': timestamp})
+            # Grab the actual arrays from the dataset, transposing so that the first dimension of the array
+            # represents the number of dataset items. (e.g. norm-0-g2 might be stored in the dataset as an array
+            # of shape (50, 3), which represents 3 g2 curves, with each g2 curve containing 50 points; so, we want
+            # to transpose that for zipping)
+            array_data = dict()
+            for name, dataset in datasets_and_sizes.items():
+                if name in exchange_transpose:
+                    array_data[name] = dataset['dataset'][()].squeeze().T
+                else:
+                    array_data[name] = dataset['dataset'][()].squeeze()
+
+            # Zip according to the dataset arrays' first dimensions (grab each 'curve' from the array of curves)
+            for zipped in zip(*array_data.values()):
+
+                # Compose a new dictionary with the dataset keys and the zipped dataset item (e.g. 'curve')
+                data = dict(zip(array_data.keys(), zipped))
+                timestamps = dict(zip(array_data.keys(), len(array_data.keys()) * [timestamp]))
+                yield 'event', reduced_stream_bundle.compose_event(data=data, timestamps=timestamps)
 
             yield 'stop', run_bundle.compose_stop()
