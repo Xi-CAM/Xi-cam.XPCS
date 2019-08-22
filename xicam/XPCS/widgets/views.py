@@ -73,7 +73,7 @@ class CorrelationView(QWidget):
 
     def results(self, dataKey):
         for index in self.checkedItemIndexes:
-            yield index.data(Qt.UserRole)['data'][dataKey]
+            yield index.data(Qt.UserRole)['data'].get(dataKey, np.array([]))
 
     def parentItemSet(self):
         parents = set()
@@ -112,14 +112,15 @@ class CorrelationView(QWidget):
             opts = self.plotOpts.copy()
             opts['pen'] = pg.mkPen(self.plotOpts['pen'])  # type: QPen
             opts['pen'].setStyle(Qt.DashLine)
-            fit_curve = self.plot.plot(x=xData, y=fitCurve[roi].squeeze(), **opts)
-            name = roiList[roi]
+            name = f"q = {roiList[roi]: .3g}"
             curveItem = CurveItemSample(curve, name=name)
-            fitCurveItem = CurveItemSample(fit_curve, name=f'{name} (fit)')
             self._curveItems.append(curveItem)
-            self._curveItems.append(fitCurveItem)
             self.legend.addItem(curveItem, curveItem.name)
-            self.legend.addItem(fitCurveItem, fitCurveItem.name)
+            if len(fitCurve[roi]) > 0:
+                fit_curve = self.plot.plot(x=xData, y=fitCurve[roi].squeeze(), **opts)
+                fitCurveItem = CurveItemSample(fit_curve, name=f'{name} (fit)')
+                self._curveItems.append(fitCurveItem)
+                self.legend.addItem(fitCurveItem, fitCurveItem.name)
             self.legend.show()
 
 
