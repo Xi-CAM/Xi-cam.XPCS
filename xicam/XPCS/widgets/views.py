@@ -17,6 +17,13 @@ class CurveItemSample(ItemSample):
 
 
 # TODO
+# - required:
+#   - generic way to display data
+#     - do you use toolbar to do this (dropdown of 'keys' you can display)
+#     - do you use a context menu
+#     - do you add columns to the parent tree items to show g2, ... (probably not best idea, n keys ...)
+#   - related; generic way to ignore data
+#     - rn, fitcurve is specially handled. how would you do this in a more generic way?
 # - nice to have add abilities:
 #   - to show symbols
 #   - to show lines
