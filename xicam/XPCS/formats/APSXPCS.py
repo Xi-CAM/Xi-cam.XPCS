@@ -88,7 +88,7 @@ class APSXPCS(DataHandlerPlugin):
         dict
             Dictionary of the h5 dataset keys with values:
                 dataset - the HDF5 dataset object
-                num_records - the number of records (items) in each dataset
+                num_items - the number of items in each dataset record
 
         """
         dataset_sizes = dict()
@@ -98,7 +98,7 @@ class APSXPCS(DataHandlerPlugin):
             try:
                 dataset_sizes[dataset] = {
                     'dataset': h5[group][dataset],
-                    'num_records': [h5[group][dataset].shape[shape_index]],
+                    'num_items': [h5[group][dataset].shape[shape_index]],
                 }
             except KeyError as ex:
                 logMessage(f"[{key}] not found while ingesting [{h5.filename}].")
@@ -142,7 +142,7 @@ class APSXPCS(DataHandlerPlugin):
                     reduced_data_keys[dataset] = {
                         'source': source,
                         'dtype': 'number',
-                        'shape': datasets_and_sizes[dataset]['num_records'],
+                        'shape': datasets_and_sizes[dataset]['num_items'],
                     }
                 except Exception as ex:
                     logError(ex)
@@ -158,23 +158,30 @@ class APSXPCS(DataHandlerPlugin):
                 yield 'event', frame_stream_bundle.compose_event(data={'frame', frame},
                                                                  timestamps={'frame', timestamp})
 
-            # Grab the actual arrays from the dataset, transposing so that the first dimension of the array
+
+            # Define datasets that are the same for all events (not zipped)
+            # e.g. the same tau dataset is used for all of the events
+            consistent_datasets = ['tau']
+            # Grab the actual arrays from each dataset, transposing so that the first dimension of the array
             # represents the number of dataset items. (e.g. norm-0-g2 might be stored in the dataset as an array
             # of shape (50, 3), which represents 3 g2 curves, with each g2 curve containing 50 points; so, we want
             # to transpose that for zipping)
             array_data = dict()
             for name, dataset in datasets_and_sizes.items():
-                if name in exchange_transpose:
-                    array_data[name] = dataset['dataset'][()].squeeze().T
-                else:
-                    array_data[name] = dataset['dataset'][()].squeeze()
+                if name not in consistent_datasets:
+                    if name in exchange_transpose:
+                        array_data[name] = dataset['dataset'][()].squeeze().T
+                    else:
+                        array_data[name] = dataset['dataset'][()].squeeze()
 
             # Zip according to the dataset arrays' first dimensions (grab each 'curve' from the array of curves)
             for zipped in zip(*array_data.values()):
 
                 # Compose a new dictionary with the dataset keys and the zipped dataset item (e.g. 'curve')
                 data = dict(zip(array_data.keys(), zipped))
-                timestamps = dict(zip(array_data.keys(), len(array_data.keys()) * [timestamp]))
+                for dataset_key in consistent_datasets:
+                    data[dataset_key] = datasets_and_sizes[dataset_key]['dataset'][()].squeeze()
+                timestamps = dict(zip(data.keys(), len(data.keys()) * [timestamp]))
                 yield 'event', reduced_stream_bundle.compose_event(data=data, timestamps=timestamps)
 
             yield 'stop', run_bundle.compose_stop()
