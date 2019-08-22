@@ -17,6 +17,13 @@ class CurveItemSample(ItemSample):
 
 
 # TODO
+# - required:
+#   - generic way to display data
+#     - do you use toolbar to do this (dropdown of 'keys' you can display)
+#     - do you use a context menu
+#     - do you add columns to the parent tree items to show g2, ... (probably not best idea, n keys ...)
+#   - related; generic way to ignore data
+#     - rn, fitcurve is specially handled. how would you do this in a more generic way?
 # - nice to have add abilities:
 #   - to show symbols
 #   - to show lines
@@ -73,7 +80,7 @@ class CorrelationView(QWidget):
 
     def results(self, dataKey):
         for index in self.checkedItemIndexes:
-            yield index.data(Qt.UserRole)['data'][dataKey]
+            yield index.data(Qt.UserRole)['data'].get(dataKey, np.array([]))
 
     def parentItemSet(self):
         parents = set()
@@ -91,11 +98,11 @@ class CorrelationView(QWidget):
             # TODO -- might need try for ValueError
             self.checkedItemIndexes.remove(itemIndex)
 
-        g2 = list(self.results('g2'))
-        g2Err = list(self.results('g2_err'))
-        lagSteps = list(self.results('lag_steps'))
-        fitCurve = list(self.results('fit_curve'))
-        roiList = list(self.results('name'))
+        g2 = list(self.results('norm-0-g2'))
+        g2Err = list(self.results('norm-0-stderr'))
+        lagSteps = list(self.results('tau'))
+        fitCurve = list(self.results('g2avgFIT1'))
+        roiList = list(self.results('dqlist'))
 
         for roi in range(len(self.checkedItemIndexes)):
             yData = g2[roi].squeeze()
@@ -112,14 +119,15 @@ class CorrelationView(QWidget):
             opts = self.plotOpts.copy()
             opts['pen'] = pg.mkPen(self.plotOpts['pen'])  # type: QPen
             opts['pen'].setStyle(Qt.DashLine)
-            fit_curve = self.plot.plot(x=xData, y=fitCurve[roi].squeeze(), **opts)
-            name = roiList[roi]
+            name = f"q = {roiList[roi]: .3g}"
             curveItem = CurveItemSample(curve, name=name)
-            fitCurveItem = CurveItemSample(fit_curve, name=f'{name} (fit)')
             self._curveItems.append(curveItem)
-            self._curveItems.append(fitCurveItem)
             self.legend.addItem(curveItem, curveItem.name)
-            self.legend.addItem(fitCurveItem, fitCurveItem.name)
+            if len(fitCurve[roi]) > 0:
+                fit_curve = self.plot.plot(x=xData, y=fitCurve[roi].squeeze(), **opts)
+                fitCurveItem = CurveItemSample(fit_curve, name=f'{name} (fit)')
+                self._curveItems.append(fitCurveItem)
+                self.legend.addItem(fitCurveItem, fitCurveItem.name)
             self.legend.show()
 
 

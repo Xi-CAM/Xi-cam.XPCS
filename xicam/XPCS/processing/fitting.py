@@ -27,10 +27,12 @@ class ScatteringModel(Fittable1DModel):
 class FitScatteringFactor(ProcessingPlugin):
     name = "Fit Scattering Factor"
 
-    g2 = InputOutput(description="normalized intensity-intensity time autocorrelation",
+    g2 = InputOutput(name='norm-0-g2',
+                     description="normalized intensity-intensity time autocorrelation",
                      type=np.ndarray,
                      visible=False)
-    lag_steps = InputOutput(description="delay time",
+    lag_steps = InputOutput(name='tau',
+                            description="delay time",
                             type=np.ndarray,
                             visible=False)
 

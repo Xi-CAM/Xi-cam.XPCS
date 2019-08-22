@@ -185,7 +185,7 @@ class XPCS(GUIPlugin):
         # Load any reduced (processed) data
         reduced = False
         for descriptor in header.descriptordocs:
-            if descriptor['name'] == 'reduced':
+            if descriptor['name'] == '1-Time':
                 reduced = True
                 break
         paths = header.startdoc.get('paths')
@@ -194,7 +194,7 @@ class XPCS(GUIPlugin):
                 startItem = QStandardItem(header.startdoc.get('sample_name', '??'))
                 eventlist = header.eventdocs
                 for event in eventlist:
-                    eventItem = QStandardItem(event['data']['name'])
+                    eventItem = QStandardItem(f"q = {event['data']['dqlist']: .3g}")
                     eventItem.setData(event, Qt.UserRole)
                     eventItem.setCheckable(True)
                     startItem.appendRow(eventItem)
@@ -267,26 +267,28 @@ class XPCS(GUIPlugin):
 
     def saveResult(self, result, fileSelectionView=None):
         if fileSelectionView:
-            data = dict()
-            if not fileSelectionView.correlationName.displayText():
-                data['name'] = fileSelectionView.correlationName.placeholderText()
-            else:
-                data['name'] = fileSelectionView.correlationName.displayText()
-            data['result'] = result
+            analyzed_results = dict()
 
-            self._results.append(data)
+            if not fileSelectionView.correlationName.displayText():
+                analyzed_results['result_name'] = fileSelectionView.correlationName.placeholderText()
+            else:
+                analyzed_results['result_name'] = fileSelectionView.correlationName.displayText()
+            analyzed_results = {**analyzed_results, **result}
+
+            self._results.append(analyzed_results)
 
     def createDocument(self, view: CorrelationView, header, roi, workflow):
         self.catalog.upsert(self._createDocument, (self._results, header, roi, workflow), {})
         # TODO -- make sure that this works for multiple selected series to process
         key = list(self.catalog)[-1]
 
-        parentItem = QStandardItem(self._results[-1]['name'])
+        # TODO -- make sure 'result_name' is unique in model
+        parentItem = QStandardItem(self._results[-1]['result_name'])
         for name, doc in self.catalog[key].read_canonical():
             if name == 'event':
                 resultsModel = view.model
-                # item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-                item = QStandardItem(doc['data']['name'])
+                # item = QStandardItem(doc['data']['name'])
+                item = QStandardItem(doc['data']['dqlist'])
                 item.setData(doc, Qt.UserRole)
                 item.setCheckable(True)
                 parentItem.appendRow(item)
@@ -307,22 +309,22 @@ class XPCS(GUIPlugin):
         # TODO -- make sure workflow pickles, or try dill / cloudpickle
         source = 'Xi-cam'
 
-        peek_result = results[0]['result']
+        peek_result = results[0]
         g2_shape = peek_result['g2'].value.shape[0]
-        # TODO -- make sure g2_err is calculated and added to internal process documents
+        # TODO -- make sure norm-0-stderr is calculated and added to internal process documents
         import numpy as np
         g2_err = np.zeros(g2_shape)
         g2_err_shape = g2_shape
-        lag_steps_shape = peek_result['lag_steps'].value.shape[0]
+        tau_shape = peek_result['lag_steps'].value.shape[0]
         workflow = []
         workflow_shape = len(workflow)
 
         reduced_data_keys = {
-            'g2': {'source': source, 'dtype': 'number', 'shape': [g2_shape]},
-            'g2_err': {'source': source, 'dtype': 'number', 'shape': [g2_err_shape]},
-            'lag_steps': {'source': source, 'dtype': 'number', 'shape': [lag_steps_shape]},
-            'fit_curve': {'source': source, 'dtype': 'number', 'shape': [lag_steps_shape]},
-            'name': {'source': source, 'dtype': 'string', 'shape': []}, # todo -- shape
+            'norm-0-g2': {'source': source, 'dtype': 'number', 'shape': [g2_shape]},
+            'norm-0-stderr': {'source': source, 'dtype': 'number', 'shape': [g2_err_shape]},
+            'tau': {'source': source, 'dtype': 'number', 'shape': [tau_shape]},
+            'g2avgFIT1': {'source': source, 'dtype': 'number', 'shape': [tau_shape]},
+            'dqlist': {'source': source, 'dtype': 'string', 'shape': []}, # todo -- shape
              'workflow': {'source': source, 'dtype': 'string', 'shape': [workflow_shape]}
          }
         reduced_stream_name = 'reduced'
@@ -349,17 +351,17 @@ class XPCS(GUIPlugin):
 
         for result in results:
             yield 'event', reduced_stream_bundle.compose_event(
-                data={'g2': result['result']['g2'].value,
-                      'g2_err': g2_err,
-                      'lag_steps': result['result']['lag_steps'].value,
-                      'fit_curve': result['result']['fit_curve'].value,
-                      'name': roi,  # TODO update to roi
+                data={'norm-0-g2': result['g2'].value,
+                      'norm-0-stderr': g2_err,
+                      'tau': result['lag_steps'].value,
+                      'g2avgFIT1': result['fit_curve'].value,
+                      'dqlist': roi,  # TODO update to roi
                       'workflow': workflow},
-                timestamps={'g2': timestamp,
-                            'g2_err': timestamp,
-                            'lag_steps': timestamp,
-                            'fit_curve': timestamp,
-                            'name': timestamp,
+                timestamps={'norm-0-g2': timestamp,
+                            'norm-0-stderr': timestamp,
+                            'tau': timestamp,
+                            'g2avgFIT1': timestamp,
+                            'dqlist': timestamp,
                             'workflow': workflow}
             )
 
