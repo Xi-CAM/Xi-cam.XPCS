@@ -91,11 +91,11 @@ class CorrelationView(QWidget):
             # TODO -- might need try for ValueError
             self.checkedItemIndexes.remove(itemIndex)
 
-        g2 = list(self.results('g2'))
-        g2Err = list(self.results('g2_err'))
-        lagSteps = list(self.results('lag_steps'))
-        fitCurve = list(self.results('fit_curve'))
-        roiList = list(self.results('name'))
+        g2 = list(self.results('norm-0-g2'))
+        g2Err = list(self.results('norm-0-stderr'))
+        lagSteps = list(self.results('tau'))
+        fitCurve = list(self.results('g2avgFIT1'))
+        roiList = list(self.results('dqlist'))
 
         for roi in range(len(self.checkedItemIndexes)):
             yData = g2[roi].squeeze()
