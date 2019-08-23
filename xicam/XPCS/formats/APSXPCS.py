@@ -179,9 +179,21 @@ class APSXPCS(DataHandlerPlugin):
 
                 # Compose a new dictionary with the dataset keys and the zipped dataset item (e.g. 'curve')
                 data = dict(zip(array_data.keys(), zipped))
+                data['dqlist'] = QROI(data['dqlist'])
                 for dataset_key in consistent_datasets:
                     data[dataset_key] = datasets_and_sizes[dataset_key]['dataset'][()].squeeze()
                 timestamps = dict(zip(data.keys(), len(data.keys()) * [timestamp]))
                 yield 'event', reduced_stream_bundle.compose_event(data=data, timestamps=timestamps)
 
             yield 'stop', run_bundle.compose_stop()
+
+
+class QROI(object):
+    """
+    Temporary class to put the qlist into a repr-able object so all ROIs can be treated generically.
+    """
+    def __init__(self, q_value):
+        self.q = q_value
+
+    def __repr__(self):
+        return f"q = {self.q: .3g}"
