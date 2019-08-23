@@ -119,7 +119,7 @@ class CorrelationView(QWidget):
             opts = self.plotOpts.copy()
             opts['pen'] = pg.mkPen(self.plotOpts['pen'])  # type: QPen
             opts['pen'].setStyle(Qt.DashLine)
-            name = f"q = {roiList[roi]: .3g}"
+            name = roiList[roi]
             curveItem = CurveItemSample(curve, name=name)
             self._curveItems.append(curveItem)
             self.legend.addItem(curveItem, curveItem.name)

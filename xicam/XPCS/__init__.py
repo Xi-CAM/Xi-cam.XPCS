@@ -194,7 +194,7 @@ class XPCS(GUIPlugin):
                 startItem = QStandardItem(header.startdoc.get('sample_name', '??'))
                 eventlist = header.eventdocs
                 for event in eventlist:
-                    eventItem = QStandardItem(f"q = {event['data']['dqlist']: .3g}")
+                    eventItem = QStandardItem(repr(event['data']['dqlist']))
                     eventItem.setData(event, Qt.UserRole)
                     eventItem.setCheckable(True)
                     startItem.appendRow(eventItem)
@@ -260,7 +260,7 @@ class XPCS(GUIPlugin):
                                  callback_slot=callbackSlot,
                                  finished_slot=partial(finishedSlot,
                                                        header=self.currentheader(),
-                                                       roi=repr(rois[0]),
+                                                       roi=rois[0],  # todo -- handle multiple rois
                                                        workflow=workflowPickle))
             # TODO -- should header be passed to callback_slot
             # (callback slot handle can handle multiple data items in data list)
@@ -288,7 +288,7 @@ class XPCS(GUIPlugin):
             if name == 'event':
                 resultsModel = view.model
                 # item = QStandardItem(doc['data']['name'])
-                item = QStandardItem(doc['data']['dqlist'])
+                item = QStandardItem(repr(doc['data']['dqlist']))
                 item.setData(doc, Qt.UserRole)
                 item.setCheckable(True)
                 parentItem.appendRow(item)
