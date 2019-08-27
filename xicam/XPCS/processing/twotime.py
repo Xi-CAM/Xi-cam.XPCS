@@ -12,12 +12,9 @@ class TwoTimeCorrelation(ProcessingPlugin):
     data = Input(description='dimensions are: (rr, cc), iterable of 2D arrays',
                  type=np.ndarray,
                  visible=False)
-    num_frames = Input(description='number of images to use default is number of images',
-                       type=int)
-    # TODO -- how to handle runtime default?
     num_bufs = Input(description='maximum lag step to compute in each generation of downsampling (must be even)',
                      type=int,
-                     default=1)
+                     default=1000)
     num_levels = Input(description=('how many generations of downsampling to perform, '
                                     'i.e., the depth of the binomial tree of averaged frames default is one'),
                        type=int,
@@ -29,12 +26,11 @@ class TwoTimeCorrelation(ProcessingPlugin):
                        type=np.ndarray)
 
     def evaluate(self):
-        if self.num_frames.value == 0:
-            self.num_frames.value = len(self.data.value)
-
+        # TODO -- if exposing num_frames as an Input, how do we handle a default value?
+        num_frames = len(self.data.value)
         corr = two_time_corr(self.labels.value.astype(np.int),
                              np.asarray(self.data.value),
-                             self.num_frames.value,
+                             num_frames,
                              self.num_bufs.value,
                              self.num_levels.value)
         self.g2.value = corr.g2
