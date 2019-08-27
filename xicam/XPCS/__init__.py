@@ -278,6 +278,18 @@ class XPCS(GUIPlugin):
             self._results.append(analyzed_results)
 
     def createDocument(self, view: CorrelationView, header, roi, workflow):
+
+        # TODO -- remove this temp code for time time
+        if type(view) is TwoTimeView:
+            import pyqtgraph as pg
+            from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
+            # why multiple results?
+            g2 = self._results[0]['g2'].value.squeeze()
+            img = LogScaleIntensity()
+            img.setImage(g2)
+            img.show()
+        ###
+
         self.catalog.upsert(self._createDocument, (self._results, header, roi, workflow), {})
         # TODO -- make sure that this works for multiple selected series to process
         key = list(self.catalog)[-1]
@@ -325,7 +337,7 @@ class XPCS(GUIPlugin):
             'tau': {'source': source, 'dtype': 'number', 'shape': [tau_shape]},
             'g2avgFIT1': {'source': source, 'dtype': 'number', 'shape': [tau_shape]},
             'dqlist': {'source': source, 'dtype': 'string', 'shape': []}, # todo -- shape
-             'workflow': {'source': source, 'dtype': 'string', 'shape': [workflow_shape]}
+            'workflow': {'source': source, 'dtype': 'string', 'shape': [workflow_shape]}
          }
         reduced_stream_name = 'reduced'
         reduced_stream_bundle = run_bundle.compose_descriptor(data_keys=reduced_data_keys,
@@ -355,7 +367,7 @@ class XPCS(GUIPlugin):
                       'norm-0-stderr': g2_err,
                       'tau': result['lag_steps'].value,
                       'g2avgFIT1': result['fit_curve'].value,
-                      'dqlist': roi,  # TODO update to roi
+                      'dqlist': roi,
                       'workflow': workflow},
                 timestamps={'norm-0-g2': timestamp,
                             'norm-0-stderr': timestamp,
