@@ -2,8 +2,7 @@ import numpy as np
 import skbeam.core.correlation as corr
 from astropy.modeling import Fittable1DModel, Parameter, fitting
 
-from xicam.plugins import Input, InputOutput, Output, ProcessingPlugin
-
+from xicam.plugins.processingplugin import Input, InputOutput, Output, ProcessingPlugin
 
 class ScatteringModel(Fittable1DModel):
     inputs = ('lag_steps',)

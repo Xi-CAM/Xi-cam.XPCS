@@ -1,4 +1,4 @@
-from xicam.plugins import ProcessingPlugin, Input, Output, InOut
+from xicam.plugins.processingplugin import ProcessingPlugin, Input, Output, InOut
 import skbeam.core.correlation as corr
 from scipy.signal import fftconvolve
 import numpy as np
