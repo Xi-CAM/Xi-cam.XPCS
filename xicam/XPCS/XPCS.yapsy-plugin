@@ -1,9 +1,0 @@
-[Core]
-Name = xicam.XPCS
-Module = __init__.py
-
-[Documentation]
-Author = Ron Pandolfi
-Version = 
-Website = 
-Description = XPCS GUI interface
