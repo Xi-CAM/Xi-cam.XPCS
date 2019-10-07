@@ -9,6 +9,7 @@ from xicam.core.msg import WARNING, notifyMessage
 from xicam.plugins.datahandlerplugin import DataHandlerPlugin
 
 
+# TODO : DataHandlerPlugin deprecated for CatalogPlugin
 class APSXPCS(DataHandlerPlugin):
     """
     Handles ingestion of APS XPCS .hdf files.

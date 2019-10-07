@@ -40,5 +40,8 @@ setup(
     #dependency_links=dependency_links,
     author_email='ronpandolfi@lbl.gov',
     entry_points={'xicam.plugins.GUIPlugin': ['xpcs_gui_plugin = xicam.XPCS:XPCS'],
-                  'xicam.plugins.CatalogPlugin': ['aps_xpcs = xicam.XPCS.formats.APSXPCS:APSXPCS']},
+                  'xicam.plugins.CatalogPlugin': ['xpcs_aps_plugin = xicam.XPCS.formats.APSXPCS:APSXPCS'],
+                  'xicam.plugins.ProcessingPlugin': ['xpcs_onetime_plugin = xicam.XPCS.processing.OneTimeCorrelation:OneTimeCorrelation',
+                                                     'xpcs_fourier_plugin = xicam.XPCS.processing.FourierCorrelation:FourierCorrelation'],
+                  },
 )
