@@ -30,14 +30,14 @@ class CurveItemSample(ItemSample):
 # - might be nice to have selection model check/uncheck items
 #   - e.g. if selectedItem(s) is checkable: toggle check
 #   - model item clicked
-class CorrelationView(QWidget):
+class CorrelationWidget(QWidget):
     """
     Widget for viewing the correlation results.
 
     This could be generalized into a ComboPlotView / PlotView / ComboView ...
     """
     def __init__(self, model):
-        super(CorrelationView, self).__init__()
+        super(CorrelationWidget, self).__init__()
         self.model = model  # type: QStandardItemModel
         self.resultsList = QTreeView(self)
         self.resultsList.setHeaderHidden(True)
@@ -131,23 +131,46 @@ class CorrelationView(QWidget):
             self.legend.show()
 
 
-class OneTimeView(CorrelationView):
+class OneTimeWidget(CorrelationWidget):
     def __init__(self):
         self.model = QStandardItemModel()
-        super(OneTimeView, self).__init__(self.model)
+        super(OneTimeWidget, self).__init__(self.model)
         plotItem = self._plot.getPlotItem()
         plotItem.setLabel('left', 'g<sub>2</sub>(&tau;)', 's')
         plotItem.setLabel('bottom', '&tau;', 's')
         plotItem.setLogMode(x=True)
 
 
-class TwoTimeView(CorrelationView):
+class TwoTimeWidget(CorrelationWidget):
     def __init__(self):
         self.model = QStandardItemModel()
-        super(TwoTimeView, self).__init__(self.model)
+        super(TwoTimeWidget, self).__init__(self.model)
         plotItem = self._plot.getPlotItem()
         plotItem.setLabel('left', 't<sub>2</sub>', 's')
         plotItem.setLabel('bottom', 't<sub>1</sub>', 's')
+
+        # # TODO -- remove this temp code for time time
+        # if type(view) is TwoTimeWidget:
+        #     import pyqtgraph as pg
+        #     from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
+        #     # why multiple results?
+        #     g2 = self._results[0]['g2'].value.squeeze()
+        #     img = LogScaleIntensity()
+        #     img.setImage(g2)
+        #     img.show()
+        #     ###
+
+
+from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
+class TwoTimeImage(LogScaleIntensity):
+    def __init__(self, *args, **kwargs):
+        super(TwoTimeImage, self).__init__(self, *args, **kwargs)
+
+    def setImage(self, img, autoRange=True, autoLevels=True, levels=None, axes=None, xvals=None, pos=None, scale=None, transform=None, autoHistogramRange=True):
+        axes = {}
+        super(TwoTimeImage, self).setImage(img)
+
+
 
 
 class FileSelectionView(QWidget):

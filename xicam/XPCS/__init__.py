@@ -4,7 +4,7 @@ from functools import partial
 
 import cloudpickle as pickle
 import event_model
-from intake_bluesky.in_memory import BlueskyInMemoryCatalog
+from databroker.core import BlueskyRun
 from pyqtgraph.parametertree import Parameter, ParameterTree
 from pyqtgraph.parametertree.parameterTypes import ListParameter
 from qtpy.QtCore import *
@@ -21,8 +21,14 @@ from xicam.plugins import GUILayout, GUIPlugin
 from xicam.plugins import manager as pluginmanager
 from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPluginBase
 
-from .widgets.views import CorrelationView, FileSelectionView, OneTimeView, TwoTimeView
+from .widgets.views import CorrelationWidget, FileSelectionView, OneTimeWidget, TwoTimeWidget
 from .workflows import FourierAutocorrelator, OneTime, TwoTime
+
+
+class BlueskyItem(QStandardItem):
+
+    def __init__(self):
+        super(QStandardItem, self).__init__()
 
 
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
@@ -117,8 +123,6 @@ class XPCS(GUIPlugin):
     name = 'XPCS'
 
     def __init__(self):
-        self.catalog = BlueskyInMemoryCatalog()
-
         # XPCS data model
         self.resultsModel = QStandardItemModel()
 
@@ -138,14 +142,14 @@ class XPCS(GUIPlugin):
                                   geometry=self.getAI)
 
         # Setup correlation views
-        self.twoTimeView = TwoTimeView()
+        self.twoTimeView = TwoTimeWidget()
         self.twoTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
         self.twoTimeProcessor = TwoTimeProcessor()
         self.twoTimeToolBar = QToolBar()
         self.twoTimeToolBar.addAction(QIcon(static.path('icons/run.png')), 'Process', self.processTwoTime)
         self.twoTimeToolBar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        self.oneTimeView = OneTimeView()
+        self.oneTimeView = OneTimeWidget()
         self.oneTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
         self.oneTimeProcessor = OneTimeProcessor()
         self.oneTimeToolBar = QToolBar()
@@ -201,6 +205,20 @@ class XPCS(GUIPlugin):
                 # TODO -- properly add to view (one-time or 2-time, etc.)
                 self.oneTimeView.model.invisibleRootItem().appendRow(startItem)
 
+    def appendCatalog(self, catalog: BlueskyRun, **kwargs):
+        displayName = ""
+        if 'sample_name' in catalog.metadata['start']:
+            displayName = catalog.metadata['start']['sample_name']
+        elif 'scan_id' in catalog.metadata['start']:
+            displayName = catalog.metadata['start']['scan_id']
+        else:
+            displayName = catalog.metadata['start']['uid']
+
+        item = BlueskyItem(displayName)
+        item.setData(catalog, Qt.UserRole)
+        self.catalogModel.appendRow(item)
+        self.catalogModel.dataChanged.emit(item.index(), item.index())
+
     def getAI(self):
         return None
 
@@ -231,7 +249,7 @@ class XPCS(GUIPlugin):
             data = [header.meta_array() for header in self.currentheaders()]
             currentWidget = self.rawTabView.currentWidget()
             rois = [item for item in currentWidget.view.items if isinstance(item, BetterROI)]
-            labels = [currentWidget.poly_mask()] * len(data)
+            labels = [currentWidget.poly_mask()] * len(data)  # TODO: update for multiple ROIs
             numLevels = [1] * len(data)
 
             numBufs = []
@@ -261,9 +279,8 @@ class XPCS(GUIPlugin):
                                  finished_slot=partial(finishedSlot,
                                                        header=self.currentheader(),
                                                        roi=rois[0],  # todo -- handle multiple rois
-                                                       workflow=workflowPickle))
-            # TODO -- should header be passed to callback_slot
-            # (callback slot handle can handle multiple data items in data list)
+                                                       workflow=workflow,
+                                                       workflow_pickle=workflowPickle))
 
     def saveResult(self, result, fileSelectionView=None):
         if fileSelectionView:
@@ -277,26 +294,17 @@ class XPCS(GUIPlugin):
 
             self._results.append(analyzed_results)
 
-    def createDocument(self, view: CorrelationView, header, roi, workflow):
-
-        # TODO -- remove this temp code for time time
-        if type(view) is TwoTimeView:
-            import pyqtgraph as pg
-            from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
-            # why multiple results?
-            g2 = self._results[0]['g2'].value.squeeze()
-            img = LogScaleIntensity()
-            img.setImage(g2)
-            img.show()
-        ###
-
-        self.catalog.upsert(self._createDocument, (self._results, header, roi, workflow), {})
+    def createDocument(self, view: CorrelationWidget, header, roi, workflow, workflow_pickle):
+        kwargs = {'results': self._results,
+                  'header': header,
+                  'roi': roi,
+                  'workflow_pickle': workflow_pickle}
+        documents = dict(workflow.document(**kwargs))
         # TODO -- make sure that this works for multiple selected series to process
-        key = list(self.catalog)[-1]
 
         # TODO -- make sure 'result_name' is unique in model
         parentItem = QStandardItem(self._results[-1]['result_name'])
-        for name, doc in self.catalog[key].read_canonical():
+        for name, doc in documents.items():
             if name == 'event':
                 resultsModel = view.model
                 # item = QStandardItem(doc['data']['name'])
@@ -311,70 +319,3 @@ class XPCS(GUIPlugin):
                 selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
         resultsModel.appendRow(parentItem)
         self._results = []
-
-    def _createDocument(self, results, header, roi, workflow):
-        timestamp = time.time()
-
-        run_bundle = event_model.compose_run()
-        yield 'start', run_bundle.start_doc
-
-        # TODO -- make sure workflow pickles, or try dill / cloudpickle
-        source = 'Xi-cam'
-
-        peek_result = results[0]
-        g2_shape = peek_result['g2'].value.shape[0]
-        # TODO -- make sure norm-0-stderr is calculated and added to internal process documents
-        import numpy as np
-        g2_err = np.zeros(g2_shape)
-        g2_err_shape = g2_shape
-        tau_shape = peek_result['lag_steps'].value.shape[0]
-        workflow = []
-        workflow_shape = len(workflow)
-
-        reduced_data_keys = {
-            'norm-0-g2': {'source': source, 'dtype': 'number', 'shape': [g2_shape]},
-            'norm-0-stderr': {'source': source, 'dtype': 'number', 'shape': [g2_err_shape]},
-            'tau': {'source': source, 'dtype': 'number', 'shape': [tau_shape]},
-            'g2avgFIT1': {'source': source, 'dtype': 'number', 'shape': [tau_shape]},
-            'dqlist': {'source': source, 'dtype': 'string', 'shape': []}, # todo -- shape
-            'workflow': {'source': source, 'dtype': 'string', 'shape': [workflow_shape]}
-         }
-        reduced_stream_name = 'reduced'
-        reduced_stream_bundle = run_bundle.compose_descriptor(data_keys=reduced_data_keys,
-                                                              name=reduced_stream_name)
-        yield 'descriptor', reduced_stream_bundle.descriptor_doc
-
-        # todo -- peek frame shape
-        frame_data_keys = {'frame': {'source': source, 'dtype': 'number', 'shape': []}}
-        frame_stream_name = 'primary'
-        frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
-                                                            name=frame_stream_name)
-        yield 'descriptor', frame_stream_bundle.descriptor_doc
-
-
-        # todo -- store only paths? store the image data itself (memory...)
-        # frames = header.startdoc['paths']
-        frames = []
-        for frame in frames:
-            yield 'event', frame_stream_bundle.compose_event(
-                data={frame},
-                timestamps={timestamp}
-            )
-
-        for result in results:
-            yield 'event', reduced_stream_bundle.compose_event(
-                data={'norm-0-g2': result['g2'].value,
-                      'norm-0-stderr': g2_err,
-                      'tau': result['lag_steps'].value,
-                      'g2avgFIT1': result['fit_curve'].value,
-                      'dqlist': roi,
-                      'workflow': workflow},
-                timestamps={'norm-0-g2': timestamp,
-                            'norm-0-stderr': timestamp,
-                            'tau': timestamp,
-                            'g2avgFIT1': timestamp,
-                            'dqlist': timestamp,
-                            'workflow': workflow}
-            )
-
-        yield 'stop', run_bundle.compose_stop()

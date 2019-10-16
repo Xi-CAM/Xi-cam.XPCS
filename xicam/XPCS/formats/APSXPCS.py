@@ -4,7 +4,6 @@ from typing import Dict
 
 import event_model
 import h5py
-from intake_bluesky.in_memory import BlueskyInMemoryCatalog
 
 from xicam.core.msg import WARNING, notifyMessage, logError, logMessage
 from xicam.plugins.datahandlerplugin import DataHandlerPlugin
