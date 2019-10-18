@@ -1,6 +1,7 @@
 import numpy as np
 import skbeam.core.correlation as corr
 
+from xicam.plugins.hints import PlotHint
 from xicam.plugins.processingplugin import Input, Output, ProcessingPlugin
 
 
@@ -30,6 +31,8 @@ class OneTimeCorrelation(ProcessingPlugin):
                 type=np.ndarray)
     lag_steps = Output(name='tau',
                        type=np.ndarray)
+
+    hints = [PlotHint(lag_steps, g2)]
 
     def evaluate(self):
         self.g2.value, self.lag_steps.value = corr.multi_tau_auto_corr(self.num_levels.value,

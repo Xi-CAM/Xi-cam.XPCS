@@ -2,6 +2,7 @@ import numpy as np
 from skbeam.core.correlation import two_time_corr
 
 from xicam.plugins import Input, Output, ProcessingPlugin
+from xicam.plugins.hints import ImageHint
 
 
 class TwoTimeCorrelation(ProcessingPlugin):
@@ -24,6 +25,8 @@ class TwoTimeCorrelation(ProcessingPlugin):
                 type=np.ndarray)
     lag_steps = Output(description='the times at which the correlation was computed',
                        type=np.ndarray)
+
+    hints = [ImageHint(g2)]
 
     def evaluate(self):
         # TODO -- if exposing num_frames as an Input, how do we handle a default value?

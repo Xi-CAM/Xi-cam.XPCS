@@ -293,6 +293,10 @@ class XPCS(GUIPlugin):
             analyzed_results = {**analyzed_results, **result}
 
             self._results.append(analyzed_results)
+            from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
+            self.tempimage = LogScaleIntensity()
+            self.tempimage.show()
+            self.twoTimeProcessor.workflow.visualize(None, imageview=self.tempimage)
 
     def createDocument(self, view: CorrelationWidget, header, roi, workflow, workflow_pickle):
         kwargs = {'results': self._results,
@@ -319,3 +323,6 @@ class XPCS(GUIPlugin):
                 selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
         resultsModel.appendRow(parentItem)
         self._results = []
+        # TODO -- remove code below, it has to happen in callback slot
+        # from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
+        # self.twoTimeProcessor.workflow.visualize(None, imageview=LogScaleIntensity())
