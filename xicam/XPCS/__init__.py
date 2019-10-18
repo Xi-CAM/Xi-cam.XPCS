@@ -233,14 +233,27 @@ class XPCS(GUIPlugin):
         return headers
 
     def processOneTime(self):
+        canvas = self.oneTimeView.plot
+        canvases = dict()
         self.process(self.oneTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.oneTimeFileSelection),
-                     finished_slot=partial(self.createDocument, view=self.oneTimeView))
+                     finished_slot=partial(self.createDocument,
+                                           view=self.oneTimeView,
+                                           canvas=canvas,
+                                           canvases=canvases))
 
     def processTwoTime(self):
+        from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
+        self.tempimage = LogScaleIntensity()
+        self.tempimage.show()
+        canvas = None
+        canvases = {"imageview": self.tempimage}
         self.process(self.twoTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.twoTimeFileSelection),
-                     finished_slot=partial(self.createDocument, view=self.twoTimeView))
+                     finished_slot=partial(self.createDocument,
+                                           view=self.twoTimeView,
+                                           canvas=canvas,
+                                           canvases=canvases))
 
     def process(self, processor: XPCSProcessor, **kwargs):
         if processor:
@@ -293,18 +306,16 @@ class XPCS(GUIPlugin):
             analyzed_results = {**analyzed_results, **result}
 
             self._results.append(analyzed_results)
-            from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
-            self.tempimage = LogScaleIntensity()
-            self.tempimage.show()
-            self.twoTimeProcessor.workflow.visualize(None, imageview=self.tempimage)
 
-    def createDocument(self, view: CorrelationWidget, header, roi, workflow, workflow_pickle):
+    def createDocument(self, view: CorrelationWidget, canvas, canvases, header, roi, workflow, workflow_pickle):
         kwargs = {'results': self._results,
                   'header': header,
                   'roi': roi,
                   'workflow_pickle': workflow_pickle}
         documents = dict(workflow.document(**kwargs))
         # TODO -- make sure that this works for multiple selected series to process
+
+        workflow.visualize(canvas, **canvases)
 
         # TODO -- make sure 'result_name' is unique in model
         parentItem = QStandardItem(self._results[-1]['result_name'])

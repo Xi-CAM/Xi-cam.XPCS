@@ -39,3 +39,4 @@ class OneTimeCorrelation(ProcessingPlugin):
                                                                        self.num_bufs.value,
                                                                        self.labels.value.astype(np.int),
                                                                        np.asarray(self.data.value))
+        self.g2.value = self.g2.value.squeeze()
