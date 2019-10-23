@@ -3,7 +3,9 @@ import pyqtgraph as pg
 from pyqtgraph.graphicsItems.LegendItem import ItemSample
 from qtpy.QtCore import QItemSelection, QPersistentModelIndex, Qt
 from qtpy.QtGui import QPen, QStandardItem, QStandardItemModel
-from qtpy.QtWidgets import QAbstractItemView, QDialog, QLineEdit, QListView, QTreeView, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QAbstractItemView, QGridLayout, QLineEdit, QListView, QSplitter, QToolBar, QTreeView, QVBoxLayout, QWidget
+
+from xicam.gui.widgets.collapsiblewidget import CollapsibleWidget
 
 
 # For some reason, LegendItem.removeItem(ref) wasn't working, so this class stores the data name
@@ -42,7 +44,6 @@ class CorrelationWidget(QWidget):
         self.resultsList = QTreeView(self)
         self.resultsList.setHeaderHidden(True)
         self.resultsList.setEditTriggers(QAbstractItemView.NoEditTriggers)
-
         self.resultsList.setSelectionMode(QAbstractItemView.NoSelection)
         self.plotOpts = dict()
         self._plot = pg.PlotWidget(**self.plotOpts)
@@ -60,6 +61,9 @@ class CorrelationWidget(QWidget):
         self._curveItems = []
         self.model.itemChanged.connect(self.updatePlot)
 
+    def clear(self):
+        raise NotImplementedError
+
     @property
     def plot(self):
         return self._plot
@@ -67,11 +71,6 @@ class CorrelationWidget(QWidget):
     @property
     def legend(self):
         return self._legend
-
-    def clearPlot(self):
-        self.plot.clear()
-        self._clearLegend()
-        self._curveItems.clear()
 
     def _clearLegend(self):
         for curveItem in self._curveItems:
@@ -89,7 +88,25 @@ class CorrelationWidget(QWidget):
         return parents
 
     def updatePlot(self, item: QStandardItem):
-        self.clearPlot()
+        raise NotImplementedError
+
+
+class OneTimeWidget(CorrelationWidget):
+    def __init__(self):
+        self.model = QStandardItemModel()
+        super(OneTimeWidget, self).__init__(self.model)
+        plotItem = self._plot.getPlotItem()
+        plotItem.setLabel('left', 'g<sub>2</sub>(&tau;)', 's')
+        plotItem.setLabel('bottom', '&tau;', 's')
+        plotItem.setLogMode(x=True)
+
+    def clear(self):
+        self.plot.clear()
+        self._clearLegend()
+        self._curveItems.clear()
+
+    def updatePlot(self, item: QStandardItem):
+        self.clear()
 
         itemIndex = QPersistentModelIndex(item.index())
         if item.checkState():
@@ -131,15 +148,6 @@ class CorrelationWidget(QWidget):
             self.legend.show()
 
 
-class OneTimeWidget(CorrelationWidget):
-    def __init__(self):
-        self.model = QStandardItemModel()
-        super(OneTimeWidget, self).__init__(self.model)
-        plotItem = self._plot.getPlotItem()
-        plotItem.setLabel('left', 'g<sub>2</sub>(&tau;)', 's')
-        plotItem.setLabel('bottom', '&tau;', 's')
-        plotItem.setLogMode(x=True)
-
 
 class TwoTimeWidget(CorrelationWidget):
     def __init__(self):
@@ -148,6 +156,9 @@ class TwoTimeWidget(CorrelationWidget):
         plotItem = self._plot.getPlotItem()
         plotItem.setLabel('left', 't<sub>2</sub>', 's')
         plotItem.setLabel('bottom', 't<sub>1</sub>', 's')
+        self.image = LogScaleIntensity()
+        self.image.view = plotItem
+
 
         # # TODO -- remove this temp code for time time
         # if type(view) is TwoTimeWidget:
@@ -216,3 +227,71 @@ class FileSelectionView(QWidget):
             lambda current, _:
                 self.correlationName.setPlaceholderText(current.data())
         )
+
+
+class DerivedDataWidget(QWidget):
+
+    def __init__(self, collapseWidget, parent=None):
+        super(DerivedDataWidget, self).__init__(parent)
+
+        from qtpy.QtWidgets import QLabel
+
+        self.collapseWidget = collapseWidget
+        self.tabWidget = QLabel("A Canvas")
+
+        toolBar = QToolBar()
+        action = toolBar.addAction(self.collapseWidget.name, self.collapseWidget.toggle)
+        action.setIconText("&" + action.text())
+        self.collapseWidget.toggled.connect(self.toggle)
+        self.collapseButton = toolBar.widgetForAction(action)
+        self.collapseButton.setCheckable(True)
+        self.collapseButton.setChecked(self.collapseWidget.collapsed)
+
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.addWidget(self.collapseWidget)
+        self.splitter.addWidget(self.tabWidget)
+        self.splitter.setCollapsible(0, self.collapseWidget.collapsed)
+        self.splitter.setCollapsible(1, False)
+
+        layout = QGridLayout()
+        layout.addWidget(self.splitter, 0, 0)
+        layout.addWidget(toolBar, 1, 0)
+
+        self.setLayout(layout)
+
+    def toggle(self, collapsed):
+        self.collapseButton.setChecked(not collapsed)
+        self.splitter.setCollapsible(0, collapsed)
+        try:
+            if collapsed:
+                # print(self.splitter.sizes())
+                # print(self.splitter.widget(0).minimumSizeHint())
+                sizes = []
+                for i in range(self.splitter.count()):
+                    sizes.append(self.splitter.widget(i).minimumSizeHint().width())
+                sizes[0] = 0
+                self.splitter.setSizes(sizes)
+            else:
+                sizes = []
+                for i in range(self.splitter.count()):
+                    sizes.append(self.splitter.sizes()[i])
+                sizes[0] = self.splitter.widget(i).minimumSizeHint().width()
+                self.splitter.setSizes(sizes)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
+
+class DerivedDataCanvas(QWidget):
+
+    def __init__(self, model):
+        self.model = model
+
+
+class OneTimeCanvas(DerivedDataWidget):
+
+    def __init__(self, model):
+        super(OneTimeCanvas, self).__init__(model)
+
+    def plot(self, x, y, **kwargs):
+        ...

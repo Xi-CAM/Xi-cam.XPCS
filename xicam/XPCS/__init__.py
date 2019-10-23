@@ -234,7 +234,7 @@ class XPCS(GUIPlugin):
 
     def processOneTime(self):
         canvas = self.oneTimeView.plot
-        canvases = dict()
+        canvases = dict()  # Intentionally empty; unused in PlotHint
         self.process(self.oneTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.oneTimeFileSelection),
                      finished_slot=partial(self.createDocument,
@@ -243,11 +243,11 @@ class XPCS(GUIPlugin):
                                            canvases=canvases))
 
     def processTwoTime(self):
-        from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
-        self.tempimage = LogScaleIntensity()
-        self.tempimage.show()
-        canvas = None
-        canvases = {"imageview": self.tempimage}
+        # from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
+        # self.tempimage = LogScaleIntensity()
+        # self.tempimage.show()
+        canvas = None  # Intentionally empty; unused in ImageHint
+        canvases = {"imageview": self.twoTimeView.image}
         self.process(self.twoTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.twoTimeFileSelection),
                      finished_slot=partial(self.createDocument,
