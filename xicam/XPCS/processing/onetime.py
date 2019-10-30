@@ -32,11 +32,10 @@ class OneTimeCorrelation(ProcessingPlugin):
     lag_steps = Output(name='tau',
                        type=np.ndarray)
 
-    hints = [PlotHint(lag_steps, g2)]
-
     def evaluate(self):
         self.g2.value, self.lag_steps.value = corr.multi_tau_auto_corr(self.num_levels.value,
                                                                        self.num_bufs.value,
                                                                        self.labels.value.astype(np.int),
                                                                        np.asarray(self.data.value))
         self.g2.value = self.g2.value.squeeze()
+        self.hints = [PlotHint(self.lag_steps, self.g2, name="1-Time")]
