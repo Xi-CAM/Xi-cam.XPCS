@@ -237,20 +237,17 @@ class XPCS(GUIPlugin):
         canvases = dict()  # Intentionally empty; unused in PlotHint
         self.process(self.oneTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.oneTimeFileSelection),
-                     finished_slot=partial(self.createDocument,
+                     finished_slot=partial(self.updateDerivedDataModel,
                                            view=self.oneTimeView,
                                            canvas=canvas,
                                            canvases=canvases))
 
     def processTwoTime(self):
-        # from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
-        # self.tempimage = LogScaleIntensity()
-        # self.tempimage.show()
         canvas = None  # Intentionally empty; unused in ImageHint
         canvases = {"imageview": self.twoTimeView.image}
         self.process(self.twoTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.twoTimeFileSelection),
-                     finished_slot=partial(self.createDocument,
+                     finished_slot=partial(self.updateDerivedDataModel,
                                            view=self.twoTimeView,
                                            canvas=canvas,
                                            canvases=canvases))
@@ -280,7 +277,7 @@ class XPCS(GUIPlugin):
             if kwargs.get('finished_slot'):
                 finishedSlot = kwargs['finished_slot']
             else:
-                finishedSlot = self.createDocument
+                finishedSlot = self.updateDerivedDataModel
 
             workflowPickle = pickle.dumps(workflow)
             workflow.execute_all(None,
@@ -307,33 +304,10 @@ class XPCS(GUIPlugin):
 
             self._results.append(analyzed_results)
 
-    def createDocument(self, view: CorrelationWidget, canvas, canvases, header, roi, workflow, workflow_pickle):
-        kwargs = {'results': self._results,
-                  'header': header,
-                  'roi': roi,
-                  'workflow_pickle': workflow_pickle}
-        documents = dict(workflow.document(**kwargs))
-        # TODO -- make sure that this works for multiple selected series to process
-
-        workflow.visualize(canvas, **canvases)
-
-        # TODO -- make sure 'result_name' is unique in model
-        parentItem = QStandardItem(self._results[-1]['result_name'])
-        for name, doc in documents.items():
-            if name == 'event':
-                resultsModel = view.model
-                # item = QStandardItem(doc['data']['name'])
-                item = QStandardItem(repr(doc['data']['dqlist']))
-                item.setData(doc, Qt.UserRole)
-                item.setCheckable(True)
-                parentItem.appendRow(item)
-                selectionModel = view.selectionModel
-                selectionModel.reset()
-                selectionModel.setCurrentIndex(
-                    resultsModel.index(resultsModel.rowCount() - 1, 0), QItemSelectionModel.Rows)
-                selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
-        resultsModel.appendRow(parentItem)
-        self._results = []
-        # TODO -- remove code below, it has to happen in callback slot
-        # from xicam.gui.widgets.imageviewmixins import LogScaleIntensity
-        # self.twoTimeProcessor.workflow.visualize(None, imageview=LogScaleIntensity())
+    def updateDerivedDataModel(self, view: CorrelationWidget, canvas, canvases, header, roi, workflow, workflow_pickle):
+        parentItem = BlueskyItem(workflow.name)
+        for hint in workflow.hints:
+            item = BlueskyItem(hint.name)
+            item.setData(hint)
+            item.setCheckable(True)
+            parentItem.appendRow(item)
