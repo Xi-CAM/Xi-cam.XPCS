@@ -3,9 +3,10 @@ import pyqtgraph as pg
 from pyqtgraph.graphicsItems.LegendItem import ItemSample
 from qtpy.QtCore import QItemSelection, QPersistentModelIndex, Qt
 from qtpy.QtGui import QPen, QStandardItem, QStandardItemModel
-from qtpy.QtWidgets import QAbstractItemView, QGridLayout, QLineEdit, QListView, QSplitter, QToolBar, QTreeView, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QAbstractItemView, QGridLayout, QLayout, QLineEdit, QListView, QSplitter, QToolBar, QTreeView, QVBoxLayout, QWidget
 
 from xicam.gui.widgets.collapsiblewidget import CollapsibleWidget
+from xicam.gui.widgets.plotwidgetmixins import CurveLabels
 
 
 # For some reason, LegendItem.removeItem(ref) wasn't working, so this class stores the data name
@@ -18,20 +19,6 @@ class CurveItemSample(ItemSample):
         super(CurveItemSample, self).__init__(item)
 
 
-# TODO
-# - required:
-#   - generic way to display data
-#     - do you use toolbar to do this (dropdown of 'keys' you can display)
-#     - do you use a context menu
-#     - do you add columns to the parent tree items to show g2, ... (probably not best idea, n keys ...)
-#   - related; generic way to ignore data
-#     - rn, fitcurve is specially handled. how would you do this in a more generic way?
-# - nice to have add abilities:
-#   - to show symbols
-#   - to show lines
-# - might be nice to have selection model check/uncheck items
-#   - e.g. if selectedItem(s) is checkable: toggle check
-#   - model item clicked
 class CorrelationWidget(QWidget):
     """
     Widget for viewing the correlation results.
@@ -229,28 +216,30 @@ class FileSelectionView(QWidget):
         )
 
 
+
+
 class DerivedDataWidget(QWidget):
 
-    def __init__(self, collapseWidget, parent=None):
+    def __init__(self, collapseView, canvas, parent=None):
         super(DerivedDataWidget, self).__init__(parent)
 
-        from qtpy.QtWidgets import QLabel
+        self.collapseView = collapseView
+        self.canvas = canvas
 
-        self.collapseWidget = collapseWidget
-        self.tabWidget = QLabel("A Canvas")
+        # self.collapseView.selectionChanged.connect(self.collapseView.)
 
         toolBar = QToolBar()
-        action = toolBar.addAction(self.collapseWidget.name, self.collapseWidget.toggle)
+        action = toolBar.addAction(self.collapseView.name, self.collapseView.toggle)
         action.setIconText("&" + action.text())
-        self.collapseWidget.toggled.connect(self.toggle)
+        self.collapseView.toggled.connect(self.toggle)
         self.collapseButton = toolBar.widgetForAction(action)
         self.collapseButton.setCheckable(True)
-        self.collapseButton.setChecked(self.collapseWidget.collapsed)
+        self.collapseButton.setChecked(not self.collapseView.collapsed)
 
         self.splitter = QSplitter(Qt.Horizontal)
-        self.splitter.addWidget(self.collapseWidget)
-        self.splitter.addWidget(self.tabWidget)
-        self.splitter.setCollapsible(0, self.collapseWidget.collapsed)
+        self.splitter.addWidget(self.collapseView)
+        self.splitter.addWidget(self.canvas)
+        self.splitter.setCollapsible(0, self.collapseView.collapsed)
         self.splitter.setCollapsible(1, False)
 
         layout = QGridLayout()
@@ -285,13 +274,123 @@ class DerivedDataWidget(QWidget):
 class DerivedDataCanvas(QWidget):
 
     def __init__(self, model):
+        super(DerivedDataCanvas, self).__init__()
         self.model = model
 
+    def clear(self):
+        raise NotImplementedError
 
-class OneTimeCanvas(DerivedDataWidget):
+    def legend(self):
+        raise NotImplementedError
+
+    def plot(self, x, y, **kwargs):
+        raise NotImplementedError
+
+    def setImage(self, value, **kwargs):
+        raise NotImplementedError
+
+
+class OneTimeCanvas(DerivedDataCanvas):
 
     def __init__(self, model):
         super(OneTimeCanvas, self).__init__(model)
+        self.plotWidget = CurveLabels()
+        plotItem = self.plotWidget.getPlotItem()
+        plotItem.setLabel('left', 'g<sub>2</sub>(&tau;)', 's')
+        plotItem.setLabel('bottom', '&tau;', 's')
+        layout = QGridLayout()
+        layout.addWidget(self.plotWidget)
+        self.setLayout(layout)
+
+    # The DerivedDataWidget should connect its selection changed to workflow.visualize
+
+    def clear(self):
+        self.plotWidget.clear()
 
     def plot(self, x, y, **kwargs):
+        self.clear()
+
+        # selectedIndexes = []
+        # for item in
+        #     selectedIndexes.append(index)
+
+        self.plotWidget.plot(x, y, **kwargs)
+
+
+class TwoTimeCanvas(DerivedDataCanvas):
+
+    def __init__(self, model):
+        super(TwoTimeImage, self).__init__(DerivedDataCanvas)
+
+    def clear(self):
         ...
+
+    def setImage(self, value, **kwargs):
+        ...
+
+
+from qtpy.QtWidgets import QTabWidget
+from qtpy.QtCore import QModelIndex, QPersistentModelIndex
+
+
+class CheckableStandardItemModel(QStandardItemModel):
+
+    def __init__(self, parent=None):
+        super(CheckableStandardItemModel, self).__init__(parent)
+
+        self._checkItems = set()
+
+    def flags(self, index: QModelIndex):
+        defaultFlags = self.flags(index)
+        if index.isValid():
+            return defaultFlags | Qt.ItemIsUserCheckable
+        return defaultFlags
+
+    def setData(self, index: QModelIndex, value, role=None):
+        pass
+
+
+class HintTabView(QAbstractItemView):
+
+    def __init__(self, parent):
+        super(HintTabView, self).__init__(parent)
+
+        self._tabWidget = QTabWidget(self)
+
+    # def dataChanged(self, QModelIndex, QModelIndex_1, roles, p_int=None, *args, **kwargs):
+    #     pass
+
+    def dataChanged(self, topLeft: QModelIndex, bottomRight: QModelIndex, roles):
+        if not Qt.DisplayRole in roles:
+            return
+
+        # item = topLeft.
+
+    def rowsInserted(self, QModelIndex, p_int, p_int_1):
+        pass
+
+    def rowsAboutToBeRemoved(self, QModelIndex, p_int, p_int_1):
+        pass
+
+    def visualRect(self, QModelIndex):
+        pass
+
+    def scrollTo(self, QModelIndex, hint=None):
+        pass
+
+
+
+
+if __name__ == "__main__":
+    from qtpy.QtWidgets import QApplication, QMainWindow
+    app = QApplication([])
+
+    window = QMainWindow()
+    collapseWidget = CollapsibleWidget(QListView(), "name")
+    canvas = OneTimeCanvas(QStandardItemModel())
+    widget = DerivedDataWidget(collapseWidget, canvas)
+    canvas.plot(x=[1,2,3], y=[2,4,6])
+    window.setCentralWidget(widget)
+    window.show()
+
+    app.exec()
