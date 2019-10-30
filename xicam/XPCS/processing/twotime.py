@@ -38,3 +38,5 @@ class TwoTimeCorrelation(ProcessingPlugin):
                              self.num_levels.value)
         self.g2.value = corr.g2
         self.lag_steps.value = corr.lag_steps
+
+        self.hints = [ImageHint(self.lag_steps, self.g2, name="2-Time")]
