@@ -4,7 +4,7 @@ from functools import partial
 
 import cloudpickle as pickle
 import event_model
-from intake_bluesky.in_memory import BlueskyInMemoryCatalog
+from databroker.core import BlueskyRun
 from pyqtgraph.parametertree import Parameter, ParameterTree
 from pyqtgraph.parametertree.parameterTypes import ListParameter
 from qtpy.QtCore import *
@@ -21,8 +21,14 @@ from xicam.plugins import GUILayout, GUIPlugin
 from xicam.plugins import manager as pluginmanager
 from xicam.SAXS.widgets.SAXSViewerPlugin import SAXSViewerPluginBase
 
-from .widgets.views import CorrelationView, FileSelectionView, OneTimeView, TwoTimeView
+from .widgets.views import CorrelationWidget, FileSelectionView, OneTimeWidget, TwoTimeWidget
 from .workflows import FourierAutocorrelator, OneTime, TwoTime
+
+
+class BlueskyItem(QStandardItem):
+
+    def __init__(self):
+        super(QStandardItem, self).__init__()
 
 
 class XPCSViewerPlugin(PolygonROI, SAXSViewerPluginBase):
@@ -117,8 +123,6 @@ class XPCS(GUIPlugin):
     name = 'XPCS'
 
     def __init__(self):
-        self.catalog = BlueskyInMemoryCatalog()
-
         # XPCS data model
         self.resultsModel = QStandardItemModel()
 
@@ -138,14 +142,14 @@ class XPCS(GUIPlugin):
                                   geometry=self.getAI)
 
         # Setup correlation views
-        self.twoTimeView = TwoTimeView()
+        self.twoTimeView = TwoTimeWidget()
         self.twoTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
         self.twoTimeProcessor = TwoTimeProcessor()
         self.twoTimeToolBar = QToolBar()
         self.twoTimeToolBar.addAction(QIcon(static.path('icons/run.png')), 'Process', self.processTwoTime)
         self.twoTimeToolBar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
-        self.oneTimeView = OneTimeView()
+        self.oneTimeView = OneTimeWidget()
         self.oneTimeFileSelection = FileSelectionView(self.headerModel, self.selectionModel)
         self.oneTimeProcessor = OneTimeProcessor()
         self.oneTimeToolBar = QToolBar()
@@ -185,7 +189,7 @@ class XPCS(GUIPlugin):
         # Load any reduced (processed) data
         reduced = False
         for descriptor in header.descriptordocs:
-            if descriptor['name'] == 'reduced':
+            if descriptor['name'] == '1-Time':
                 reduced = True
                 break
         paths = header.startdoc.get('paths')
@@ -194,12 +198,26 @@ class XPCS(GUIPlugin):
                 startItem = QStandardItem(header.startdoc.get('sample_name', '??'))
                 eventlist = header.eventdocs
                 for event in eventlist:
-                    eventItem = QStandardItem(event['data']['name'])
+                    eventItem = QStandardItem(repr(event['data']['dqlist']))
                     eventItem.setData(event, Qt.UserRole)
                     eventItem.setCheckable(True)
                     startItem.appendRow(eventItem)
                 # TODO -- properly add to view (one-time or 2-time, etc.)
                 self.oneTimeView.model.invisibleRootItem().appendRow(startItem)
+
+    def appendCatalog(self, catalog: BlueskyRun, **kwargs):
+        displayName = ""
+        if 'sample_name' in catalog.metadata['start']:
+            displayName = catalog.metadata['start']['sample_name']
+        elif 'scan_id' in catalog.metadata['start']:
+            displayName = catalog.metadata['start']['scan_id']
+        else:
+            displayName = catalog.metadata['start']['uid']
+
+        item = BlueskyItem(displayName)
+        item.setData(catalog, Qt.UserRole)
+        self.catalogModel.appendRow(item)
+        self.catalogModel.dataChanged.emit(item.index(), item.index())
 
     def getAI(self):
         return None
@@ -215,14 +233,24 @@ class XPCS(GUIPlugin):
         return headers
 
     def processOneTime(self):
+        canvas = self.oneTimeView.plot
+        canvases = dict()  # Intentionally empty; unused in PlotHint
         self.process(self.oneTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.oneTimeFileSelection),
-                     finished_slot=partial(self.createDocument, view=self.oneTimeView))
+                     finished_slot=partial(self.updateDerivedDataModel,
+                                           view=self.oneTimeView,
+                                           canvas=canvas,
+                                           canvases=canvases))
 
     def processTwoTime(self):
+        canvas = None  # Intentionally empty; unused in ImageHint
+        canvases = {"imageview": self.twoTimeView.image}
         self.process(self.twoTimeProcessor,
                      callback_slot=partial(self.saveResult, fileSelectionView=self.twoTimeFileSelection),
-                     finished_slot=partial(self.createDocument, view=self.twoTimeView))
+                     finished_slot=partial(self.updateDerivedDataModel,
+                                           view=self.twoTimeView,
+                                           canvas=canvas,
+                                           canvases=canvases))
 
     def process(self, processor: XPCSProcessor, **kwargs):
         if processor:
@@ -231,7 +259,7 @@ class XPCS(GUIPlugin):
             data = [header.meta_array() for header in self.currentheaders()]
             currentWidget = self.rawTabView.currentWidget()
             rois = [item for item in currentWidget.view.items if isinstance(item, BetterROI)]
-            labels = [currentWidget.poly_mask()] * len(data)
+            labels = [currentWidget.poly_mask()] * len(data)  # TODO: update for multiple ROIs
             numLevels = [1] * len(data)
 
             numBufs = []
@@ -249,7 +277,7 @@ class XPCS(GUIPlugin):
             if kwargs.get('finished_slot'):
                 finishedSlot = kwargs['finished_slot']
             else:
-                finishedSlot = self.createDocument
+                finishedSlot = self.updateDerivedDataModel
 
             workflowPickle = pickle.dumps(workflow)
             workflow.execute_all(None,
@@ -260,107 +288,26 @@ class XPCS(GUIPlugin):
                                  callback_slot=callbackSlot,
                                  finished_slot=partial(finishedSlot,
                                                        header=self.currentheader(),
-                                                       roi=repr(rois[0]),
-                                                       workflow=workflowPickle))
-            # TODO -- should header be passed to callback_slot
-            # (callback slot handle can handle multiple data items in data list)
+                                                       roi=rois[0],  # todo -- handle multiple rois
+                                                       workflow=workflow,
+                                                       workflow_pickle=workflowPickle))
 
     def saveResult(self, result, fileSelectionView=None):
         if fileSelectionView:
-            data = dict()
+            analyzed_results = dict()
+
             if not fileSelectionView.correlationName.displayText():
-                data['name'] = fileSelectionView.correlationName.placeholderText()
+                analyzed_results['result_name'] = fileSelectionView.correlationName.placeholderText()
             else:
-                data['name'] = fileSelectionView.correlationName.displayText()
-            data['result'] = result
+                analyzed_results['result_name'] = fileSelectionView.correlationName.displayText()
+            analyzed_results = {**analyzed_results, **result}
 
-            self._results.append(data)
+            self._results.append(analyzed_results)
 
-    def createDocument(self, view: CorrelationView, header, roi, workflow):
-        self.catalog.upsert(self._createDocument, (self._results, header, roi, workflow), {})
-        # TODO -- make sure that this works for multiple selected series to process
-        key = list(self.catalog)[-1]
-
-        parentItem = QStandardItem(self._results[-1]['name'])
-        for name, doc in self.catalog[key].read_canonical():
-            if name == 'event':
-                resultsModel = view.model
-                # item = QStandardItem(doc['data']['name'])  # TODO -- make sure passed data['name'] is unique in model -> CHECK HERE
-                item = QStandardItem(doc['data']['name'])
-                item.setData(doc, Qt.UserRole)
-                item.setCheckable(True)
-                parentItem.appendRow(item)
-                selectionModel = view.selectionModel
-                selectionModel.reset()
-                selectionModel.setCurrentIndex(
-                    resultsModel.index(resultsModel.rowCount() - 1, 0), QItemSelectionModel.Rows)
-                selectionModel.select(selectionModel.currentIndex(), QItemSelectionModel.SelectCurrent)
-        resultsModel.appendRow(parentItem)
-        self._results = []
-
-    def _createDocument(self, results, header, roi, workflow):
-        timestamp = time.time()
-
-        run_bundle = event_model.compose_run()
-        yield 'start', run_bundle.start_doc
-
-        # TODO -- make sure workflow pickles, or try dill / cloudpickle
-        source = 'Xi-cam'
-
-        peek_result = results[0]['result']
-        g2_shape = peek_result['g2'].value.shape[0]
-        # TODO -- make sure g2_err is calculated and added to internal process documents
-        import numpy as np
-        g2_err = np.zeros(g2_shape)
-        g2_err_shape = g2_shape
-        lag_steps_shape = peek_result['lag_steps'].value.shape[0]
-        workflow = []
-        workflow_shape = len(workflow)
-
-        reduced_data_keys = {
-            'g2': {'source': source, 'dtype': 'number', 'shape': [g2_shape]},
-            'g2_err': {'source': source, 'dtype': 'number', 'shape': [g2_err_shape]},
-            'lag_steps': {'source': source, 'dtype': 'number', 'shape': [lag_steps_shape]},
-            'fit_curve': {'source': source, 'dtype': 'number', 'shape': [lag_steps_shape]},
-            'name': {'source': source, 'dtype': 'string', 'shape': []}, # todo -- shape
-             'workflow': {'source': source, 'dtype': 'string', 'shape': [workflow_shape]}
-         }
-        reduced_stream_name = 'reduced'
-        reduced_stream_bundle = run_bundle.compose_descriptor(data_keys=reduced_data_keys,
-                                                              name=reduced_stream_name)
-        yield 'descriptor', reduced_stream_bundle.descriptor_doc
-
-        # todo -- peek frame shape
-        frame_data_keys = {'frame': {'source': source, 'dtype': 'number', 'shape': []}}
-        frame_stream_name = 'primary'
-        frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
-                                                            name=frame_stream_name)
-        yield 'descriptor', frame_stream_bundle.descriptor_doc
-
-
-        # todo -- store only paths? store the image data itself (memory...)
-        # frames = header.startdoc['paths']
-        frames = []
-        for frame in frames:
-            yield 'event', frame_stream_bundle.compose_event(
-                data={frame},
-                timestamps={timestamp}
-            )
-
-        for result in results:
-            yield 'event', reduced_stream_bundle.compose_event(
-                data={'g2': result['result']['g2'].value,
-                      'g2_err': g2_err,
-                      'lag_steps': result['result']['lag_steps'].value,
-                      'fit_curve': result['result']['fit_curve'].value,
-                      'name': roi,  # TODO update to roi
-                      'workflow': workflow},
-                timestamps={'g2': timestamp,
-                            'g2_err': timestamp,
-                            'lag_steps': timestamp,
-                            'fit_curve': timestamp,
-                            'name': timestamp,
-                            'workflow': workflow}
-            )
-
-        yield 'stop', run_bundle.compose_stop()
+    def updateDerivedDataModel(self, view: CorrelationWidget, canvas, canvases, header, roi, workflow, workflow_pickle):
+        parentItem = BlueskyItem(workflow.name)
+        for hint in workflow.hints:
+            item = BlueskyItem(hint.name)
+            item.setData(hint)
+            item.setCheckable(True)
+            parentItem.appendRow(item)

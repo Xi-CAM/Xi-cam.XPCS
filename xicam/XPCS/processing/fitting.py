@@ -2,6 +2,7 @@ import numpy as np
 import skbeam.core.correlation as corr
 from astropy.modeling import Fittable1DModel, Parameter, fitting
 
+from xicam.plugins.hints import PlotHint
 from xicam.plugins.processingplugin import Input, InputOutput, Output, ProcessingPlugin
 
 class ScatteringModel(Fittable1DModel):
@@ -26,10 +27,12 @@ class ScatteringModel(Fittable1DModel):
 class FitScatteringFactor(ProcessingPlugin):
     name = "Fit Scattering Factor"
 
-    g2 = InputOutput(description="normalized intensity-intensity time autocorrelation",
+    g2 = InputOutput(name='norm-0-g2',
+                     description="normalized intensity-intensity time autocorrelation",
                      type=np.ndarray,
                      visible=False)
-    lag_steps = InputOutput(description="delay time",
+    lag_steps = InputOutput(name='tau',
+                            description="delay time",
                             type=np.ndarray,
                             visible=False)
 
@@ -59,3 +62,5 @@ class FitScatteringFactor(ProcessingPlugin):
 
         self.relaxation_rate.value = fit.relaxation_rate.value
         self.fit_curve.value = fit(self.lag_steps.value)
+
+        self.hints = [PlotHint(self.lag_steps, self.fit_curve, name="1-Time Fit")]
