@@ -8,4 +8,7 @@ class XPCS(GUIPlugin):
 
         self.stages = saxsplugin.stages['Correlate']
 
+        self.appendCatalog = saxsplugin.appendCatalog
+        self.appendHeader = saxsplugin.appendHeader
+
         super(XPCS, self).__init__()
