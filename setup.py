@@ -39,6 +39,5 @@ setup(
     install_requires=install_requires,
     #dependency_links=dependency_links,
     author_email='ronpandolfi@lbl.gov',
-    entry_points={'xicam.plugins.GUIPlugin': ['xpcs_gui_plugin = xicam.XPCS:XPCS'],
-                  'xicam.plugins.CatalogPlugin': ['aps_xpcs = xicam.XPCS.formats.APSXPCS:APSXPCS']},
+    entry_points={'xicam.plugins.GUIPlugin': ['xpcs_gui_plugin = xicam.XPCS:XPCS'], },
 )
