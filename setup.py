@@ -32,7 +32,7 @@ setup(
         'Programming Language :: Python :: 3',
     ],
     keywords='',
-    packages=find_packages(exclude=['docs', 'tests*']),
+    packages=find_namespace_packages(exclude=['docs', 'tests*']),
     package_data={'xicam.XPCS': ['*.yapsy-plugin']},
     include_package_data=True,
     author='Ron Pandolfi',
