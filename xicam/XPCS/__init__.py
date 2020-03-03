@@ -4,7 +4,7 @@ class XPCS(GUIPlugin):
     name = 'XPCS'
 
     def __init__(self):
-        saxsplugin = pluginmanager.getPluginByName('SAXS', 'GUIPlugin').plugin_object
+        saxsplugin = pluginmanager.get_plugin_by_name('SAXS', 'GUIPlugin')
 
         self.stages = saxsplugin.stages['Correlate']
 
