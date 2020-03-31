@@ -1,5 +1,6 @@
 from xicam.plugins import GUILayout, GUIPlugin, manager as pluginmanager
 
+
 class XPCS(GUIPlugin):
     name = 'XPCS'
 
