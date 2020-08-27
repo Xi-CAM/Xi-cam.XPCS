@@ -1,4 +1,5 @@
 from xicam.plugins import GUILayout, GUIPlugin, manager as pluginmanager
+from . import ingestors
 
 
 class XPCS(GUIPlugin):
