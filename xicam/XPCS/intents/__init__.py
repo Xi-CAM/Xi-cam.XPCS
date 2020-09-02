@@ -32,8 +32,8 @@ class ImageIntent(Intent):
 
 
 class PlotIntent(Intent):
-    # Model that we can pull hints (EnsembleModel)
-    # View interprets these hints by init'ng canvas into its display
+    # Model that we can pull intents (EnsembleModel)
+    # View interprets these intents by init'ng canvas into its display
     canvas = PlotIntentCanvas
 
     def __init__(self, x: Dataset, y: Dataset, *args, **kwargs):

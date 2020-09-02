@@ -1,6 +1,6 @@
 from typing import List
 from databroker.core import BlueskyRun
-from ..hints import Intent, PlotIntent
+from ..intents import Intent, PlotIntent
 from ..ingestors import g2_projection_key, g2_error_projection_key
 
 
@@ -8,7 +8,7 @@ from ..ingestors import g2_projection_key, g2_error_projection_key
 
 # hint -> xicam.intent
 # projection -> xicam.intent
-# def discover_intents(BlueskyRun) -> List[Intent] # inspects hints and projections to create intents
+# def discover_intents(BlueskyRun) -> List[Intent] # inspects intents and projections to create intents
 
 def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     projection = next(
@@ -25,4 +25,4 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         PlotIntent(y=g2_curve, x=g2_curve['g2'], category=g2_projection_key.split("/")[-1])
         for g2_curve in g2[g2_projection_key]
     ]
-    # TODO: additionally return hints for masks, rois
+    # TODO: additionally return intents for masks, rois

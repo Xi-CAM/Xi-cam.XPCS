@@ -1,8 +1,8 @@
 from typing import Callable, Union, Dict, List
 from qtpy.QtCore import Qt, QAbstractProxyModel, QIdentityProxyModel, QModelIndex, QItemSelection, QPersistentModelIndex
 from xicam.SAXS.data.ensemble import Ensemble, EnsembleModel
-from xicam.XPCS.hints import Intent
-from xicam.XPCS.hints.canvases import IntentCanvas
+from xicam.XPCS.intents import Intent
+from xicam.XPCS.intents.canvases import IntentCanvas
 
 # IntentCanvas -> SingleIntentCanvas -> ImageIntentCanvas
 #              -> MultipleIntentCanvas -> PlotItentCanvas
