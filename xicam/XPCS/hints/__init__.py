@@ -1,8 +1,8 @@
 from xarray import Dataset
-from pyqtgraph import ImageView, PlotWidget
+from .canvases import ImageIntentCanvas, PlotIntentCanvas
 
 
-class Hint:
+class Intent:
     def __init__(self, name="", category=""):
         self._name = name
         self._category = category
@@ -16,37 +16,28 @@ class Hint:
         return self._category
 
 
-class ImageHintCanvas(ImageView):
-    def __init__(self, *args, **kwargs):
-        super(ImageHintCanvas, self).__init__(*args, **kwargs)
-
-    def render(self, hint):
-        self.setImage(hint.image)
+# class MatplotlibImageCanvas(ImageIntentCanvas):
+#     def render(self, ...):
+#         matplotlib.imshow(...)
 
 
-class ImageHint(Hint):
-    canvas = ImageHintCanvas
+class ImageIntent(Intent):
+    canvas = ImageIntentCanvas
+    # TODO: move toward environment dict (see below)
+    # canvas = {"qt": ImageIntentCanvas, "matplotlib": matplotlib.imshow} # canvasmanager will know how to map to these keys
 
     def __init__(self, image, *args, **kwargs):
-        super(ImageHint, self).__init__(*args, **kwargs)
+        super(ImageIntent, self).__init__(*args, **kwargs)
         self.image = image
 
 
-class PlotHintCanvas(PlotWidget):
-    def __init__(self, *args, **kwargs):
-        super(PlotHintCanvas, self).__init__(*args, **kwargs)
-
-    def render(self, hint):
-        self.plot(x=hint.x.compute(), y=hint.y.compute())
-
-
-class PlotHint(Hint):
+class PlotIntent(Intent):
     # Model that we can pull hints (EnsembleModel)
     # View interprets these hints by init'ng canvas into its display
-    canvas = PlotHintCanvas
+    canvas = PlotIntentCanvas
 
     def __init__(self, x: Dataset, y: Dataset, *args, **kwargs):
-        super(PlotHint, self).__init__(*args, **kwargs)
+        super(PlotIntent, self).__init__(*args, **kwargs)
         self.x = x
         self.y = y
 
