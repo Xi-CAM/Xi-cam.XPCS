@@ -11,6 +11,7 @@ class Intent:
     def name(self):
         return self._name
 
+    # TODO : WIP (this is not part of an intent inherently yet, just testing)
     @property
     def category(self):
         return self._category
