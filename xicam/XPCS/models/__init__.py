@@ -1,9 +1,12 @@
+from itertools import count
+
 from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel
 from qtpy.QtGui import QStandardItemModel
 
 from xicam.core.msg import logMessage, WARNING
-from xicam.core.workspace import WorkspaceDataType, Ensemble
+from xicam.core.workspace import WorkspaceDataType#, Ensemble
 from xicam.core.intents import Intent
+from xicam.gui.models.treemodel import TreeModel, TreeItem
 from xicam.gui.workspace.models import CheckableItem
 
 from xicam.XPCS.projectors.nexus import project_nxXPCS
@@ -35,6 +38,12 @@ class CanvasManager:
     def drop_canvas(self, key):
         ...
 
+    # def render(self, canvas, intent):
+    #     canvas.render(intent)
+
+    # ImageIntentCanvas <- ImageWithRoiIntentCanvas
+    # or (preferred) add logic in the ImageIntentCanvas render method
+
 
 class XicamCanvasManager(CanvasManager):
     def __init__(self):
@@ -49,7 +58,9 @@ class XicamCanvasManager(CanvasManager):
         # There is another canvas we know about we should use
         for match_index in self.all_intent_indexes(index.model()):
             if self.is_matching_canvas_type(index, match_index):
-                return match_index.model().data(match_index, EnsembleModel.canvas_role)
+                canvas = match_index.model().data(match_index, EnsembleModel.canvas_role)
+                if canvas is not None:
+                    return canvas
 
         # Does not exist, create new canvas and return
         intent = index.model().data(index, EnsembleModel.object_role)
@@ -57,16 +68,17 @@ class XicamCanvasManager(CanvasManager):
         canvas_name = intent.canvas
         canvas = pluginmanager.get_plugin_by_name(canvas_name, "IntentCanvasPlugin")()
         index.model().setData(index, canvas, EnsembleModel.canvas_role)
+        # TODO why doesn't above modify index.data(EnsembleMOdel.canvas_role)?
         # canvas.render(intent)
         return canvas
 
     @classmethod
-    def all_intent_indexes(cls, model: QStandardItemModel, parent_index=None):
+    def all_intent_indexes(cls, model: TreeModel, parent_index=None):
         if parent_index is None:
-            parent_index = model.invisibleRootItem().index()
+            parent_index = model.index(0, 0, QModelIndex())
 
         for row in range(model.rowCount(parent_index)):
-            child_index = model.createIndex(row, 0, parent_index)
+            child_index = model.index(row, 0, parent_index)
             data_type = model.data(child_index, EnsembleModel.data_type_role)
             if data_type is WorkspaceDataType.Intent:
                 yield child_index
@@ -74,13 +86,13 @@ class XicamCanvasManager(CanvasManager):
                 yield from cls.all_intent_indexes(model, child_index)
 
     def is_matching_canvas_type(self, index: QModelIndex, match_index: QModelIndex):
-        match_intent = match_index.model().data(EnsembleModel.object_role)
-        intent = index.model().data(EnsembleModel.object_role)
+        match_intent = match_index.data(EnsembleModel.object_role)
+        intent = index.data(EnsembleModel.object_role)
         assert isinstance(intent, Intent)
         assert isinstance(match_intent, Intent)
 
-        match_canvas_type_string = match_intent.canvas.get("qt")
-        intent_canvas_type_string = intent.canvas.get("qt")
+        match_canvas_type_string = match_intent.canvas
+        intent_canvas_type_string = intent.canvas
 
         if intent_canvas_type_string != match_canvas_type_string:
             return False
@@ -91,7 +103,38 @@ class XicamCanvasManager(CanvasManager):
         return True
 
 
-class EnsembleModel(QStandardItemModel):
+class Ensemble:
+    """Represents an organized collection of catalogs."""
+    _count = count(1)
+
+    def __init__(self, parent=None, name=""):
+        # super(Ensemble, self).__init__(parent)
+
+        self.catalogs = []
+        self._name = name
+        self._count = next(self._count)
+
+    @property
+    def name(self):
+        if not self._name:
+            self._name = f"Ensemble {self._count}"
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        if not name:
+            return
+        self._name = name
+
+    def append_catalog(self, catalog):
+        self.catalogs.append(catalog)
+
+    def append_catalogs(self, *catalogs):
+        for catalog in catalogs:
+            self.append_catalog(catalog)
+
+
+class EnsembleModel(TreeModel):
     object_role = Qt.UserRole + 1
     data_type_role = Qt.UserRole + 2
     canvas_role = Qt.UserRole + 3
@@ -100,21 +143,22 @@ class EnsembleModel(QStandardItemModel):
 
     Each workspace may store multiple Catalogs.
     """
-    def __init__(self, *args, **kwargs):
-        super(EnsembleModel, self).__init__(*args, **kwargs)
-        self.dataChanged.connect(self.DEBUG)
-
-    def DEBUG(self, *args, **kwargs):
-        print(f"Ensemble dataChanged emitted\n\t{args}\n\t{kwargs}")
+    def __init__(self, parent=None):
+        super(EnsembleModel, self).__init__(parent)
+    #     self.dataChanged.connect(self.DEBUG)
+    #
+    # def DEBUG(self, *args, **kwargs):
+    #     print(f"Ensemble dataChanged emitted\n\t{args}\n\t{kwargs}")
 
     def add_ensemble(self, ensemble: Ensemble):
-        ensemble_item = CheckableItem()
+        ensemble_item = TreeItem(self.rootItem)
+        # ensemble_item = ensemble
         ensemble_item.setData(ensemble.name, Qt.DisplayRole)
         ensemble_item.setData(ensemble, self.object_role)
         ensemble_item.setData(WorkspaceDataType.Ensemble, self.data_type_role)
 
         for catalog in ensemble.catalogs:
-            catalog_item = CheckableItem()
+            catalog_item = TreeItem(ensemble_item)
             catalog_name = getattr(catalog, "name", "catalog")
             catalog_item.setData(catalog_name, Qt.DisplayRole)
             catalog_item.setData(catalog, self.object_role)
@@ -123,17 +167,23 @@ class EnsembleModel(QStandardItemModel):
             try:
                 intents = project_nxXPCS(catalog)
                 for intent in intents:
-                    intent_item = CheckableItem()
+                    intent_item = TreeItem(catalog_item)
                     intent_item.setData(intent.name, Qt.DisplayRole)
                     intent_item.setData(intent, self.object_role)
                     intent_item.setData(WorkspaceDataType.Intent, self.data_type_role)
-                    catalog_item.appendRow(intent_item)
+                    catalog_item.appendChild(intent_item)
             except AttributeError as e:
                 logMessage(e, level=WARNING)
 
-            ensemble_item.appendRow(catalog_item)
+            ensemble_item.appendChild(catalog_item)
 
-        self.appendRow(ensemble_item)
+            # root_index = self.index(0, 0, QModelIndex())
+            # ensemble_index = self.index(0, 0, root_index)
+            # last_catalog_index = self.index(ensemble_item.childCount() - 1, 0, ensemble_index)
+            # last_intent_index = self.index(catalog_item.columnCount() - 1, 0, last_catalog_index)
+            # self.dataChanged.emit(ensemble_index, last_catalog_index, [Qt.DisplayRole, self.object_role, self.data_type_role])
+
+        self.rootItem.appendChild(ensemble_item)
 
     def remove_ensemble(self, ensemble):
         # TODO
@@ -156,6 +206,10 @@ class CanvasProxyModel(QSortFilterProxyModel):
         self.canvas_manager = XicamCanvasManager()
 
         # self.sourceModel().dataChanged.connect(self.DEBUG)
+
+    def setSourceModel(self, model):
+        super(CanvasProxyModel, self).setSourceModel(model)
+        model.dataChanged.connect(self.dataChanged)
 
     def DEBUG(self, *args, **kwargs):
         print(f"CanvasProxyModel dataChanged emitted\n\t{args}\n\t{kwargs}")
@@ -184,55 +238,6 @@ class CanvasProxyModel(QSortFilterProxyModel):
         print(f"\tRETURN: {temp_ret_val}\n")
         return temp_ret_val
 
-
-if __name__ == "__main__":
-    from databroker.in_memory import BlueskyInMemoryCatalog
-    from qtpy.QtWidgets import QApplication, QMainWindow, QSplitter, QListView
-    from xicam.SAXS.widgets.views import ResultsTabView, DataSelectorView
-    from xicam.XPCS.ingestors import ingest_nxXPCS
-    from xicam.gui.windows.mainwindow import XicamMainWindow
-
-
-    app = QApplication([])
-
-
-    uris = ["/home/ihumphrey/Downloads/B009_Aerogel_1mm_025C_att1_Lq0_001_0001-10000.nxs"]
-    document = list(ingest_nxXPCS(uris))
-    uid = document[0][1]["uid"]
-    catalog = BlueskyInMemoryCatalog()
-    catalog.upsert(document[0][1], document[-1][1], ingest_nxXPCS, [uris], {})
-    cat = catalog[uid]
-
-    source_model = EnsembleModel()
-    ensemble = Ensemble()
-    ensemble.append_catalog(cat)
-    source_model.add_ensemble(ensemble)
-    # for i in range(3):
-    #     workspace = Ensemble()
-    #     workspace.catalogs = [type('obj', (object,), {"name": f"cat{i}"})()]
-    #     source_model.add_ensemble(workspace)
-
-    data_selector_view = DataSelectorView()
-    data_selector_view.setModel(source_model)
-
-    proxy_model = CanvasProxyModel()
-    proxy_model.setSourceModel(source_model)
-    results_view = ResultsTabView()
-    results_view.setModel(proxy_model)
-
-    list_view = QListView()
-    list_view.setModel(proxy_model)
-
-    widget = QSplitter()
-    widget.addWidget(data_selector_view)
-    widget.addWidget(results_view)
-    widget.addWidget(list_view)
-
-    window = XicamMainWindow()
-    window.setCentralWidget(widget)
-    window.show()
-
-    app.exec()
 
 
 class _CanvasProxyModel(QIdentityProxyModel):
@@ -293,3 +298,38 @@ class _CanvasProxyModel(QIdentityProxyModel):
         # TODO : canvas.render(intent, index)
         # TODO: canvas.unrender(intent, index) needs to be implemented
         return data
+
+
+if __name__ == "__main__":
+    from databroker.in_memory import BlueskyInMemoryCatalog
+    from qtpy.QtWidgets import QApplication, QMainWindow, QSplitter, QListView, QTreeView
+    from xicam.XPCS.ingestors import ingest_nxXPCS
+
+    app = QApplication([])
+
+
+    uris = ["/home/ihumphrey/Downloads/B009_Aerogel_1mm_025C_att1_Lq0_001_0001-10000.nxs"]
+    document = list(ingest_nxXPCS(uris))
+    uid = document[0][1]["uid"]
+    catalog = BlueskyInMemoryCatalog()
+    catalog.upsert(document[0][1], document[-1][1], ingest_nxXPCS, [uris], {})
+    cat = catalog[uid]
+
+    source_model = EnsembleModel()
+    ensemble = Ensemble()
+    ensemble.append_catalog(cat)
+    source_model.add_ensemble(ensemble)
+
+    data_selector_view = QTreeView()
+    data_selector_view.setModel(source_model)
+
+
+    widget = QSplitter()
+    widget.addWidget(data_selector_view)
+
+
+    window = QMainWindow()
+    window.setCentralWidget(widget)
+    window.show()
+
+    app.exec()
