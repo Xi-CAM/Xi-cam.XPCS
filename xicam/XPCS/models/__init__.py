@@ -1,13 +1,16 @@
+from collections import defaultdict
 from itertools import count
+from typing import Any
 
-from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel
+from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, \
+    QItemSelectionRange
 from qtpy.QtGui import QStandardItemModel
 
 from xicam.core.msg import logMessage, WARNING
 from xicam.core.workspace import WorkspaceDataType#, Ensemble
 from xicam.core.intents import Intent
+from xicam.plugins import manager as pluginmanager
 from xicam.gui.models.treemodel import TreeModel, TreeItem
-from xicam.gui.workspace.models import CheckableItem
 
 from xicam.XPCS.projectors.nexus import project_nxXPCS
 
@@ -41,6 +44,9 @@ class CanvasManager:
     # def render(self, canvas, intent):
     #     canvas.render(intent)
 
+    def canvas_from_registry(self, canvas_name, registry):
+        ...
+
     # ImageIntentCanvas <- ImageWithRoiIntentCanvas
     # or (preferred) add logic in the ImageIntentCanvas render method
 
@@ -48,6 +54,15 @@ class CanvasManager:
 class XicamCanvasManager(CanvasManager):
     def __init__(self):
         super(XicamCanvasManager, self).__init__()
+
+    def canvas_from_registry(self, canvas_name, registry):
+        return registry.get_plugin_by_name(canvas_name, "IntentCanvasPlugin")()
+
+    def drop_canvas(self, key: QModelIndex):
+        intent = key.data(EnsembleModel.object_role)
+        canvas = key.data(EnsembleModel.canvas_role)
+        if canvas:
+            drop_completely = canvas.unrender(intent)
 
     def canvas_from_index(self, index: QModelIndex):
         # Canvas exists for index, return
@@ -64,11 +79,13 @@ class XicamCanvasManager(CanvasManager):
 
         # Does not exist, create new canvas and return
         intent = index.model().data(index, EnsembleModel.object_role)
-        from xicam.plugins import manager as pluginmanager
         canvas_name = intent.canvas
-        canvas = pluginmanager.get_plugin_by_name(canvas_name, "IntentCanvasPlugin")()
+        registry = pluginmanager
+        canvas = self.canvas_from_registry(canvas_name, registry)
+
         index.model().setData(index, canvas, EnsembleModel.canvas_role)
         # TODO why doesn't above modify index.data(EnsembleMOdel.canvas_role)?
+        index.model()
         # canvas.render(intent)
         return canvas
 
@@ -145,10 +162,15 @@ class EnsembleModel(TreeModel):
     """
     def __init__(self, parent=None):
         super(EnsembleModel, self).__init__(parent)
-    #     self.dataChanged.connect(self.DEBUG)
-    #
-    # def DEBUG(self, *args, **kwargs):
-    #     print(f"Ensemble dataChanged emitted\n\t{args}\n\t{kwargs}")
+
+    def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole = Qt.EditRole) -> bool:
+        if not index.isValid():
+            return False
+        item = self.getItem(index)
+        if role in (self.object_role, self.canvas_role, self.data_type_role):
+            item.itemData[role] = value
+        else:
+            return super(EnsembleModel, self).setData(index, value, role)
 
     def add_ensemble(self, ensemble: Ensemble):
         ensemble_item = TreeItem(self.rootItem)
@@ -205,15 +227,38 @@ class CanvasProxyModel(QSortFilterProxyModel):
         self.setRecursiveFilteringEnabled(True)
         self.canvas_manager = XicamCanvasManager()
 
-        # self.sourceModel().dataChanged.connect(self.DEBUG)
-
     def setSourceModel(self, model):
         super(CanvasProxyModel, self).setSourceModel(model)
-        model.dataChanged.connect(self.dataChanged)
+        model.dataChanged.connect(self.filterDataChanged)
 
-    def DEBUG(self, *args, **kwargs):
-        print(f"CanvasProxyModel dataChanged emitted\n\t{args}\n\t{kwargs}")
 
+    def filterDataChanged(self, topLeft, bottomRight, roles):
+        # topLeft is the highest ancesestor of the item that was checked/unchecked
+        # bottomRight is the deepest child of the item that was checked/unchecked
+        # [x]            - topLeft
+        #    []
+        #       []                       new top left
+        #       []      -- bottomRight
+        #    []
+        #       []                       new bottom right
+
+        # iterate over all children of topLeft; for all of their children emit ranges
+        # Map the range to the proxy model as a new Qselection... (hopefully)
+        selection_range = QItemSelectionRange(topLeft, bottomRight)
+
+        # Get a list of all intent indexes (with .selectedIndexes(), hopefully)
+        selected_indexes = selection_range.indexes()
+
+        intent_indexes = filter(lambda index: self.filterAcceptsRow(index.row(), index.parent()), selected_indexes)
+
+        index_map = defaultdict(list)
+        for index in intent_indexes:
+            index_map[index.parent()].append(index)
+
+        for indices in index_map.values():
+            self.dataChanged.emit(indices[0], indices[-1], roles)
+
+        # self.dataChanged.emit(topLeft, bottomRight, roles)
     def data(self, index, role=Qt.DisplayRole):
         print("CanvasProxyModel.data")
         if role == EnsembleModel.canvas_role:
@@ -239,67 +284,6 @@ class CanvasProxyModel(QSortFilterProxyModel):
         return temp_ret_val
 
 
-
-class _CanvasProxyModel(QIdentityProxyModel):
-    """Maps data to appropriate render target."""
-    def __init__(self, canvas_manager, *args, **kwargs):
-        super(_CanvasProxyModel, self).__init__(*args, **kwargs)
-        self._canvas_manager = CanvasManager()
-        self._canvas_to_indexes_map = {}   # Dict[HintCanvas, List[QPersistentModelIndex]]
-
-    def canvas_from_index(self, index: QModelIndex):
-        canvas = self.data(index, self.CanvasRole)
-        if canvas is not None:
-            return canvas
-        else:
-            canvas = self.create_canvas(index)
-        return canvas
-
-    def create_canvas(self, index: QModelIndex):
-        # canvas =
-        ...
-
-    # @staticmethod
-    # def create_canvas(canvas_type, *canvas_args, **canvas_kwargs):
-    #     if canvas_type:
-    #         canvas = canvas_type(*canvas_args, **canvas_kwargs)
-    #         return canvas
-
-    def add_data_to_canvas(self, canvas, data: Intent, index: QPersistentModelIndex):
-        if canvas:
-            canvas.render(data)
-            self._canvas_to_indexes_map[canvas] = index
-
-
-    # self.data(index, role=UserRole+1 (CanvasRole...)
-    def find_canvases(self, search_index):
-        canvases = []
-        for canvas, indexes in self._canvas_to_indexes_map:
-            for index in indexes:
-                if index == search_index:
-                    canvases += canvas
-        return canvases
-
-    def data(self, index, role=Qt.DisplayRole):
-        if role != Qt.UserRole:
-            return super(_CanvasProxyModel, self).data(index, role)
-
-        source_index = self.mapToSource(index)
-        data = self.sourceModel().data(source_index, role=role)
-
-        p_index = QPersistentModelIndex(index)
-        canvases = self.find_canvases(p_index)
-        if canvases:
-            canvas = canvases[0]  # TODO don't always grab first canvas
-        else:
-            canvas_type = getattr(data, "canvas", None)
-            canvas = self.create_canvas(canvas_type)
-        canvas.render(data)
-        # TODO : canvas.render(intent, index)
-        # TODO: canvas.unrender(intent, index) needs to be implemented
-        return data
-
-
 if __name__ == "__main__":
     from databroker.in_memory import BlueskyInMemoryCatalog
     from qtpy.QtWidgets import QApplication, QMainWindow, QSplitter, QListView, QTreeView
@@ -323,9 +307,14 @@ if __name__ == "__main__":
     data_selector_view = QTreeView()
     data_selector_view.setModel(source_model)
 
+    proxy_model = CanvasProxyModel()
+    proxy_model.setSourceModel(source_model)
+    proxy_view = QListView()
+    proxy_view.setModel(proxy_model)
 
     widget = QSplitter()
     widget.addWidget(data_selector_view)
+    widget.addWidget(proxy_view)
 
 
     window = QMainWindow()
