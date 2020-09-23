@@ -14,22 +14,6 @@ from xicam.gui.models.treemodel import TreeModel, TreeItem
 
 from xicam.XPCS.projectors.nexus import project_nxXPCS
 
-# View should destroy / disown canvases when they have no Intents.
-# widget.setParent(None)
-
-# CanvasView's model is the proxyModel (attached to tree source model)
-# CanvasView manages canvases
-# Canvases it will display are the top 4 in the proxy model (e.g)
-# Using selected layout, puts canvas widgets into layout
-# needs bookkeeping for the canvas widgets (if layout changes)
-
-# View -> CanvasProxy -> IntentProxy -> EnsembleModel
-
-
-
-
-# ask Dan what common functionality should be required in a abstract canvas manager base class
-# what
 
 class CanvasManager:
     def __init__(self):
@@ -199,12 +183,6 @@ class EnsembleModel(TreeModel):
 
             ensemble_item.appendChild(catalog_item)
 
-            # root_index = self.index(0, 0, QModelIndex())
-            # ensemble_index = self.index(0, 0, root_index)
-            # last_catalog_index = self.index(ensemble_item.childCount() - 1, 0, ensemble_index)
-            # last_intent_index = self.index(catalog_item.columnCount() - 1, 0, last_catalog_index)
-            # self.dataChanged.emit(ensemble_index, last_catalog_index, [Qt.DisplayRole, self.object_role, self.data_type_role])
-
         self.rootItem.appendChild(ensemble_item)
 
     def remove_ensemble(self, ensemble):
@@ -212,6 +190,7 @@ class EnsembleModel(TreeModel):
         raise NotImplementedError
 
     def rename_ensemble(self, ensemble, name):
+        # TODO, defer to setData w/ EditRole
         found_ensemble_items = self.findItems(ensemble.name)
         if found_ensemble_items:
             ensemble_item = found_ensemble_items[0]
@@ -261,28 +240,22 @@ class CanvasProxyModel(QSortFilterProxyModel):
             self.dataChanged.emit(indices[0], indices[-1], roles)
 
         # self.dataChanged.emit(topLeft, bottomRight, roles)
+
     def data(self, index, role=Qt.DisplayRole):
-        print("CanvasProxyModel.data")
         if role == EnsembleModel.canvas_role:
             return self.canvas_manager.canvas_from_index(index)
         return super(CanvasProxyModel, self).data(index, role)
 
     def filterAcceptsRow(self, row, parent):
-        print("CanvasProxyModel.filterAcceptsRow")
         index = self.sourceModel().index(row, 0, parent)
-        print(f"\tindex: {index}")
         data_type_role = index.data(role=self.sourceModel().data_type_role)
-        print(f"\tdata_type_role: {data_type_role}")
         parent_check_state = self.sourceModel().data(parent, Qt.CheckStateRole)
-        print(f"\tparent.isValid(): {parent.isValid()}")
-        print(f"\tparent_check_state: {parent_check_state}")
 
         temp_ret_val = False
 
         if data_type_role == WorkspaceDataType.Intent and parent_check_state != Qt.Unchecked:
             temp_ret_val = True
 
-        print(f"\tRETURN: {temp_ret_val}\n")
         return temp_ret_val
 
 
