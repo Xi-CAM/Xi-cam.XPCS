@@ -11,6 +11,7 @@ mimetypes.add_type('application/x-hdf5', '.nxs')
 
 g2_projection_key = 'entry/XPCS/data/g2'
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
+SAXS_1D_projection_key = 'entry/SAXS_1D/data
 # TODO: add var for rest of projection keys
 
 projections = [{'name': 'nxXPCS',
