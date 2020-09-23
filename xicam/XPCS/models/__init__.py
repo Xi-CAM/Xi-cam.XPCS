@@ -229,7 +229,9 @@ class CanvasProxyModel(QSortFilterProxyModel):
 
     def setSourceModel(self, model):
         super(CanvasProxyModel, self).setSourceModel(model)
-        model.dataChanged.connect(self.filterDataChanged)
+        model.dataChanged.connect(self.dataChanged)
+        # TODO: remove above connection, implement filterDataChanged (which then would emit data changed...)
+        # model.dataChanged.connect(self.filterDataChanged)
 
 
     def filterDataChanged(self, topLeft, bottomRight, roles):
