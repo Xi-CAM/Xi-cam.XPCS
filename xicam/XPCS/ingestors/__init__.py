@@ -1,4 +1,5 @@
 import time
+import numpy as np
 import h5py
 import event_model
 from pathlib import Path
@@ -74,10 +75,14 @@ def ingest_nxXPCS(paths):
     g2_errors = h5['entry/XPCS/data/g2_errors']
     masks = h5['entry/XPCS/data/masks']
     rois = h5['entry/XPCS/data/rois']
-    SAXS_1D_I = h5['entry/SAXS_1D/data/I']
-    SAXS_1D_Q = h5['entry/SAXS_1D/data/Q']
-    SAXS_2D_I = h5['entry/SAXS_2D/data/I']
-    SAXS_2D_mask = h5['entry/SAXS_2D/data/mask']
+    SAXS_1D_I = h5['entry/SAXS_1D/data/I'][()]
+    SAXS_1D_Q = h5['entry/SAXS_1D/data/Q'][()]
+    SAXS_1D = np.column_stack((SAXS_1D_I, SAXS_1D_Q))
+    SAXS_2D_I = da.from_array(h5['entry/SAXS_2D/data/I'])
+    SAXS_2D_mask = h5['entry/SAXS_2D/data/mask'][()]
+
+    # create xarrays
+    SAXS_1D = DataArray(SAXS_1D_I, dims=('q'), coords=(SAXS_1D_Q))
 
     # Compose run start
     run_bundle = event_model.compose_run()  # type: event_model.ComposeRunBundle
@@ -96,22 +101,22 @@ def ingest_nxXPCS(paths):
                                          'dtype': 'array',
                                          'dims': ('g2_errors',),
                                          'shape': (g2_errors.shape[0],)},
-                       'I': {'source': source,
+                       'SAXS_1D': {'source': source,
                              'dtype': 'array',
-                             'dims': ('SAXS_1D_I',),
-                             'shape': (SAXS_1D_I.shape[0],)},
-                       'Q': {'source': source,
-                             'dtype': 'array',
-                             'dims': ('SAXS_1D_I',),
-                             'shape': (SAXS_1D_Q.shape[0],)},
+                             'dims': ('SAXS_1D',),
+                             'shape': (SAXS_1D.shape,)},
+                       # 'Q': {'source': source,
+                       #       'dtype': 'array',
+                       #       'dims': ('SAXS_1D_I',),
+                       #       'shape': (SAXS_1D_Q.shape[0],)},
                        'I_2D': {'source': source,
                              'dtype': 'array',
                              'dims': ('SAXS_2D_I',),
-                             'shape': (SAXS_2D_I.shape[0],)},
+                             'shape': (SAXS_2D_I.shape,)},
                        'pixel_mask': {'source': source,
                              'dtype': 'array',
                              'dims': ('SAXS_2D_mask',),
-                             'shape': (SAXS_2D_mask.shape[0],)},
+                             'shape': (SAXS_2D_mask.shape,)},
                        }
 
     frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
@@ -120,8 +125,9 @@ def ingest_nxXPCS(paths):
                                                         )
     yield 'descriptor', frame_stream_bundle.descriptor_doc
 
-
-    #TODO: is it possible to yield 'event' multiple times?
+    t = time.time()
+    yield 'event', frame_stream_bundle.compose_event(data={'SAXS_1D': SAXS_1D},
+                                                     timestamps={'SAXS_1D': t})
     num_events = g2.shape[1]
     for i in range(num_events):
         t = time.time()
