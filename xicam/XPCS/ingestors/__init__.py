@@ -11,7 +11,15 @@ mimetypes.add_type('application/x-hdf5', '.nxs')
 
 g2_projection_key = 'entry/XPCS/data/g2'
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
-SAXS_1D_projection_key = 'entry/SAXS_1D/data
+# TODO: is masks really a good term? Rings? Intervalls? (ROIs?)
+g2_mask_projection_key = 'entry/XPCS/data/masks'
+g2_rois_projection_key = 'entry/XPCS/data/rois'
+
+SAXS_1D_I_projection_key = 'entry/SAXS_1D/data/I'
+SAXS_1D_Q_projection_key = 'entry/SAXS_1D/data/Q'
+SAXS_2D_I_projection_key = 'entry/SAXS_2D/data/I'
+SAXS_2D_mask_projection_key = 'entry/SAXS_2D/data/mask'
+
 # TODO: add var for rest of projection keys
 
 projections = [{'name': 'nxXPCS',
@@ -25,14 +33,31 @@ projections = [{'name': 'nxXPCS',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'g2_error_bars'},
-                     'entry/XPCS/data/masks': {'type': 'linked',
+                     g2_mask_projection_key: {'type': 'linked',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'masks'},
-                     'entry/XPCS/data/rois': {'type': 'linked',
+                     g2_rois_projection_key: {'type': 'linked',
                                               'stream': 'primary',
                                               'location': 'event',
-                                              'field': 'g2'}, }
+                                              'field': 'rois'},
+                     SAXS_1D_I_projection_key: {'type': 'linked',
+                                                'stream': 'primary',
+                                                'location': 'event',
+                                                'field': 'I'},
+                     SAXS_1D_Q_projection_key: {'type': 'linked',
+                                                'stream': 'primary',
+                                                'location': 'event',
+                                                'field': 'q'},
+                     SAXS_2D_I_projection_key: {'type': 'linked',
+                                                'stream': 'primary',
+                                                'location': 'event',
+                                                'field': 'I_2D'},
+                     SAXS_2D_mask_projection_key: {'type': 'linked',
+                                                'stream': 'primary',
+                                                'location': 'event',
+                                                'field': 'pixel_mask'}
+                     }
 
                 }]
 
@@ -44,9 +69,15 @@ def ingest_nxXPCS(paths):
     h5 = h5py.File(path, 'r')
 
     g2 = h5['entry/XPCS/data/g2']
+    # NOTE: g2.shape[0] =  number of g2 values in a single g2 curve
+    #       g2.shape[1] =  number of g2 curves
     g2_errors = h5['entry/XPCS/data/g2_errors']
     masks = h5['entry/XPCS/data/masks']
     rois = h5['entry/XPCS/data/rois']
+    SAXS_1D_I = h5['entry/SAXS_1D/data/I']
+    SAXS_1D_Q = h5['entry/SAXS_1D/data/Q']
+    SAXS_2D_I = h5['entry/SAXS_2D/data/I']
+    SAXS_2D_mask = h5['entry/SAXS_2D/data/mask']
 
     # Compose run start
     run_bundle = event_model.compose_run()  # type: event_model.ComposeRunBundle
@@ -58,13 +89,29 @@ def ingest_nxXPCS(paths):
     # Compose descriptor
     source = 'nxXPCS'
     frame_data_keys = {'g2_curves': {'source': source,
-                              'dtype': 'array',
-                              'dims': ('g2',),
-                              'shape': (g2.shape[0],)},
-                       'g2_error_bars': {'source': source,
                                      'dtype': 'array',
-                                     'dims': ('g2_errors',),
-                                     'shape': (g2.shape[0],)}
+                                     'dims': ('g2',),
+                                     'shape': (g2.shape[0],)},
+                       'g2_error_bars': {'source': source,
+                                         'dtype': 'array',
+                                         'dims': ('g2_errors',),
+                                         'shape': (g2_errors.shape[0],)},
+                       'I': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('SAXS_1D_I',),
+                             'shape': (SAXS_1D_I.shape[0],)},
+                       'Q': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('SAXS_1D_I',),
+                             'shape': (SAXS_1D_Q.shape[0],)},
+                       'I_2D': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('SAXS_2D_I',),
+                             'shape': (SAXS_2D_I.shape[0],)},
+                       'pixel_mask': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('SAXS_2D_mask',),
+                             'shape': (SAXS_2D_mask.shape[0],)},
                        }
 
     frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
@@ -73,8 +120,9 @@ def ingest_nxXPCS(paths):
                                                         )
     yield 'descriptor', frame_stream_bundle.descriptor_doc
 
-    num_events = g2.shape[1]
 
+    #TODO: is it possible to yield 'event' multiple times?
+    num_events = g2.shape[1]
     for i in range(num_events):
         t = time.time()
         yield 'event', frame_stream_bundle.compose_event(data={'g2_curves': g2[:, i], 'g2_error_bars': g2_errors[:, i]},
