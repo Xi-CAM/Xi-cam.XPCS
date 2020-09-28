@@ -77,7 +77,7 @@ def ingest_nxXPCS(paths):
     rois = h5['entry/XPCS/data/rois']
     SAXS_1D_I = h5['entry/SAXS_1D/data/I'][()]
     SAXS_1D_Q = h5['entry/SAXS_1D/data/Q'][()]
-    SAXS_1D = np.column_stack((SAXS_1D_I, SAXS_1D_Q))
+    # SAXS_1D = np.column_stack((SAXS_1D_I, SAXS_1D_Q))
     SAXS_2D_I = da.from_array(h5['entry/SAXS_2D/data/I'])
     SAXS_2D_mask = h5['entry/SAXS_2D/data/mask'][()]
 
@@ -93,6 +93,7 @@ def ingest_nxXPCS(paths):
 
     # Compose descriptor
     source = 'nxXPCS'
+    # if projections are seperate, reflect that in data_keys
     frame_data_keys = {'g2_curves': {'source': source,
                                      'dtype': 'array',
                                      'dims': ('g2',),
@@ -101,14 +102,14 @@ def ingest_nxXPCS(paths):
                                          'dtype': 'array',
                                          'dims': ('g2_errors',),
                                          'shape': (g2_errors.shape[0],)},
-                       'SAXS_1D': {'source': source,
+                       'SAXS_1D_I': {'source': source,
                              'dtype': 'array',
                              'dims': ('SAXS_1D',),
-                             'shape': (SAXS_1D.shape,)},
-                       # 'Q': {'source': source,
-                       #       'dtype': 'array',
-                       #       'dims': ('SAXS_1D_I',),
-                       #       'shape': (SAXS_1D_Q.shape[0],)},
+                             'shape': (SAXS_1D_I.shape,)},
+                       'Q': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('SAXS_1D_I',),
+                             'shape': (SAXS_1D_Q.shape[0],)},
                        'I_2D': {'source': source,
                              'dtype': 'array',
                              'dims': ('SAXS_2D_I',),
@@ -126,7 +127,8 @@ def ingest_nxXPCS(paths):
     yield 'descriptor', frame_stream_bundle.descriptor_doc
 
     t = time.time()
-    yield 'event', frame_stream_bundle.compose_event(data={'SAXS_1D': SAXS_1D,
+    yield 'event', frame_stream_bundle.compose_event(data={'SAXS_1D_I': SAXS_1D_I,
+                                                           'SAXS_1D_Q': SAXS_1D_Q,
                                                            'SAXS_2D': SAXS_2D_I,
                                                            'pixel_mask': SAXS_2D_mask},
                                                      timestamps={'SAXS_1D': t,
