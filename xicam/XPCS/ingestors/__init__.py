@@ -133,7 +133,7 @@ def ingest_nxXPCS(paths):
                                                            'pixel_mask': SAXS_2D_mask},
                                                      timestamps={'SAXS_1D': t,
                                                                  'SAXS_2D': t,
-                                                                 'pixel_mask':t})
+                                                                 'pixel_mask': t})
     num_events = g2.shape[1]
     for i in range(num_events):
         t = time.time()
