@@ -34,3 +34,4 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Hint]:
         for g2_curve in g2[g2_projection_key]
     ], ImageHint(image=SAXS_2D_I, category='SAXS_2D'), PlotHint(y=SAXS_1D_I, x=SAXS_1D_Q, category='SAXS_1D')
     # TODO: additionally return hints for masks, rois
+    # TODO: Overlay 2D SAXS with pixelmask
