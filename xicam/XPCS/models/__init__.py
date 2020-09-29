@@ -48,8 +48,15 @@ class XicamCanvasManager(CanvasManager):
         if canvas:
             drop_completely = canvas.unrender(intent)
 
+    def canvas_from_row(self, row: int, model):
+        self.canvas_from_index(model.index(row, 0))
+
     def canvas_from_index(self, index: QModelIndex):
+        if not index.isValid():
+            return None
+
         # Canvas exists for index, return
+        # TODO: index should not be 'Ensemble 1'... this causes recursing into canvas_from_index...
         canvas = index.data(EnsembleModel.canvas_role)
         if canvas:
             return canvas
@@ -153,6 +160,8 @@ class EnsembleModel(TreeModel):
         item = self.getItem(index)
         if role in (self.object_role, self.canvas_role, self.data_type_role):
             item.itemData[role] = value
+            # self.dataChanged.emit(index, role)
+            # return True
         else:
             return super(EnsembleModel, self).setData(index, value, role)
 
