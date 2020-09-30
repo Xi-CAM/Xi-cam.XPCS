@@ -48,11 +48,16 @@ class XicamCanvasManager(CanvasManager):
         if canvas:
             drop_completely = canvas.unrender(intent)
 
-    def canvas_from_row(self, row: int, model):
-        self.canvas_from_index(model.index(row, 0))
+    def canvas_from_row(self, row: int, model, parent_index):
+        # TODO: model.index v. model.sourceModel().index (i.e. should this only be Proxy Model, or EnsembleModel, or both)?
+        return self.canvas_from_index(model.index(row, 0, parent_index))
 
     def canvas_from_index(self, index: QModelIndex):
         if not index.isValid():
+            return None
+
+        if index.data(EnsembleModel.data_type_role) != WorkspaceDataType.Intent:
+            print(f'WARNING: canvas_from_index index {index} is not an intent')
             return None
 
         # Canvas exists for index, return
@@ -96,8 +101,14 @@ class XicamCanvasManager(CanvasManager):
     def is_matching_canvas_type(self, index: QModelIndex, match_index: QModelIndex):
         match_intent = match_index.data(EnsembleModel.object_role)
         intent = index.data(EnsembleModel.object_role)
-        assert isinstance(intent, Intent)
-        assert isinstance(match_intent, Intent)
+        if not isinstance(intent, Intent):
+            print(f"WARNING: during matching, index {index.data} is not an Intent")
+            return False
+        if not isinstance(match_intent, Intent):
+            print(f"WARNING: during matching, match_index {index.data} is not an Intent")
+            return False
+        # assert isinstance(intent, Intent)
+        # assert isinstance(match_intent, Intent)
 
         match_canvas_type_string = match_intent.canvas
         intent_canvas_type_string = intent.canvas
@@ -160,10 +171,7 @@ class EnsembleModel(TreeModel):
         item = self.getItem(index)
         if role in (self.object_role, self.canvas_role, self.data_type_role):
             item.itemData[role] = value
-            # self.dataChanged.emit(index, role)
-            # return True
-        else:
-            return super(EnsembleModel, self).setData(index, value, role)
+        return super(EnsembleModel, self).setData(index, value, role)
 
     def add_ensemble(self, ensemble: Ensemble):
         ensemble_item = TreeItem(self.rootItem)
@@ -214,15 +222,40 @@ class CanvasProxyModel(QSortFilterProxyModel):
         super(CanvasProxyModel, self).__init__()
         self.setRecursiveFilteringEnabled(True)
         self.canvas_manager = XicamCanvasManager()
+        self._mappingFromSource = {}
+
+    def mapFromSource(self, sourceIndex: QModelIndex) -> QModelIndex:
+        if sourceIndex.data(Qt.Checked) != Qt.Unchecked:
+            if sourceIndex.data(self.sourceModel().data_type_role) == WorkspaceDataType.Intent:
+                if sourceIndex in self._mappingFromSource:
+                    return self._mappingFromSource[sourceIndex]
+                else:
+                    # Recursion happening because proxy model should NOT be using createIndex?
+                    # super(CanvasProxyModel, self).mapFromSource(sourceIndex)  # RECURSION ON FILTERACCEPTSROW
+                    index = self.createIndex(self.rowCount() + 1, 0, sourceIndex.internalPointer())  # RECURSION ON FILTERACCEPTSROW
+                    self._mappingFromSource[sourceIndex] = index
+                    return index
+
+        return QModelIndex()
+
+    def index(self, row, column, parent=QModelIndex()):
+        index = self.sourceModel().index(row, column, parent)
+        return self.mapFromSource(index)
 
     def setSourceModel(self, model):
         super(CanvasProxyModel, self).setSourceModel(model)
-        model.dataChanged.connect(self.dataChanged)
+        # Forward the source model's dataChanged signal to proxy's dataChanged signal
+        def do_thing(topLeft, bottomRight, roles):
+            print("CanvasProxyModel")
+            print(f"\t{topLeft.data()}, {bottomRight.data()}, {roles}\n")
+            self.dataChanged.emit(topLeft, bottomRight, roles)
+        # model.dataChanged.connect(self.dataChanged)
+        model.dataChanged.connect(do_thing)  #  TEMP
         # TODO: remove above connection, implement filterDataChanged (which then would emit data changed...)
         # model.dataChanged.connect(self.filterDataChanged)
 
-
     def filterDataChanged(self, topLeft, bottomRight, roles):
+        # TODO: selection range does not work (is not valid) on topLeft=Ensemble1, bottomRight=1st g2
         # topLeft is the highest ancesestor of the item that was checked/unchecked
         # bottomRight is the deepest child of the item that was checked/unchecked
         # [x]            - topLeft
@@ -250,13 +283,14 @@ class CanvasProxyModel(QSortFilterProxyModel):
 
         # self.dataChanged.emit(topLeft, bottomRight, roles)
 
-    def data(self, index, role=Qt.DisplayRole):
-        if role == EnsembleModel.canvas_role:
-            return self.canvas_manager.canvas_from_index(index)
-        return super(CanvasProxyModel, self).data(index, role)
+    # def data(self, index, role=Qt.DisplayRole):
+    #     if role == EnsembleModel.canvas_role:
+    #         return self.canvas_manager.canvas_from_index(index)
+    #     return super(CanvasProxyModel, self).data(index, role)
 
     def filterAcceptsRow(self, row, parent):
-        index = self.sourceModel().index(row, 0, parent)
+        # TODO why is row 0 when we:  check tau 0, check tau 1, uncheck tau 1?
+        index = self.index(row, 0, parent)
         data_type_role = index.data(role=self.sourceModel().data_type_role)
         parent_check_state = self.sourceModel().data(parent, Qt.CheckStateRole)
 
