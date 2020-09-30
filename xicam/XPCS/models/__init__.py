@@ -154,14 +154,21 @@ class Ensemble:
 
 
 class EnsembleModel(TreeModel):
+    """TreeModel that stores Ensembles.
+
+    Defines custom roles:
+    object_role: contains a reference to item's data (this is the custom UserRole commonly used as Qt.UserRole + 1)
+    data_type_role: indicates what WorkspaceDataType the item is
+    canvas_role: reference to an associated canvas (may not be set if not applicable)
+    state_changed_role: boolean indicating when the item is in process of dataChanged
+                        (see CanvasProxyModel's filtering methods)
+    """
     object_role = Qt.UserRole + 1
     data_type_role = Qt.UserRole + 2
     canvas_role = Qt.UserRole + 3
+    state_changed_role = Qt.UserRole + 4
 
-    """Model that stores Ensembles.
 
-    Each workspace may store multiple Catalogs.
-    """
     def __init__(self, parent=None):
         super(EnsembleModel, self).__init__(parent)
 
@@ -169,8 +176,12 @@ class EnsembleModel(TreeModel):
         if not index.isValid():
             return False
         item = self.getItem(index)
-        if role in (self.object_role, self.canvas_role, self.data_type_role):
-            item.itemData[role] = value
+        # if role in (self.object_role, self.canvas_role, self.data_type_role):
+            # item.itemData[role] = value
+        if role == Qt.CheckStateRole:
+            success = super(EnsembleModel, self).setData(index, True, self.state_changed_role)
+            if not success:
+                return False
         return super(EnsembleModel, self).setData(index, value, role)
 
     def add_ensemble(self, ensemble: Ensemble):
@@ -218,85 +229,110 @@ class EnsembleModel(TreeModel):
 
 
 class CanvasProxyModel(QSortFilterProxyModel):
+    """Proxy model intended to store checked Intents in a flat structure (achieved by custom filtering).
+
+    Intended to use the EnsembleModel (TreeModel) as its source model.
+    Also, stores a publicly accessible canvas_manager reference.
+    """
     def __init__(self):
         super(CanvasProxyModel, self).__init__()
         self.setRecursiveFilteringEnabled(True)
         self.canvas_manager = XicamCanvasManager()
-        self._mappingFromSource = {}
-
-    def mapFromSource(self, sourceIndex: QModelIndex) -> QModelIndex:
-        if sourceIndex.data(Qt.Checked) != Qt.Unchecked:
-            if sourceIndex.data(self.sourceModel().data_type_role) == WorkspaceDataType.Intent:
-                if sourceIndex in self._mappingFromSource:
-                    return self._mappingFromSource[sourceIndex]
-                else:
-                    # Recursion happening because proxy model should NOT be using createIndex?
-                    # super(CanvasProxyModel, self).mapFromSource(sourceIndex)  # RECURSION ON FILTERACCEPTSROW
-                    index = self.createIndex(self.rowCount() + 1, 0, sourceIndex.internalPointer())  # RECURSION ON FILTERACCEPTSROW
-                    self._mappingFromSource[sourceIndex] = index
-                    return index
-
-        return QModelIndex()
-
-    def index(self, row, column, parent=QModelIndex()):
-        index = self.sourceModel().index(row, column, parent)
-        return self.mapFromSource(index)
 
     def setSourceModel(self, model):
+        """Sets the source model for this proxy model.
+
+        Needs to forward the source model's dataChanged signal to this proxy's dataChanged signal.
+        This is intercepted by a filtering slot, which then will emit dataChanged signals.
+        """
         super(CanvasProxyModel, self).setSourceModel(model)
-        # Forward the source model's dataChanged signal to proxy's dataChanged signal
-        def do_thing(topLeft, bottomRight, roles):
-            print("CanvasProxyModel")
-            print(f"\t{topLeft.data()}, {bottomRight.data()}, {roles}\n")
-            self.dataChanged.emit(topLeft, bottomRight, roles)
-        # model.dataChanged.connect(self.dataChanged)
-        model.dataChanged.connect(do_thing)  #  TEMP
-        # TODO: remove above connection, implement filterDataChanged (which then would emit data changed...)
-        # model.dataChanged.connect(self.filterDataChanged)
+        self._proxyToSource = {}
+        self._sourceToProxy = {}
+        self._index_to_row = {}
+        model.dataChanged.connect(self.filterDataChanged)
+
+# need to build proxy indexes to map to the source model
+
+    def index(self, row: int, column: int, parent: QModelIndex = ...) -> QModelIndex:
+
+    def mapFromSource(self, sourceIndex: QModelIndex) -> QModelIndex:
+        if sourceIndex in self._sourceToProxy:
+            return self._sourceToProxy[sourceIndex]
+        proxyIndex = self.createIndex(self.rowCount(), 0, sourceIndex.internalPointer())
+        self._sourceToProxy[sourceIndex] = proxyIndex
+        return proxyIndex
+
+        # if sourceIndex not in self._index_to_row:
+        #     if not self._index_to_row:
+        #         self._index_to_row[sourceIndex] = 0
+        #     else:
+        #         row = min(self._index_to_row.values()) + 1
+        #         self._index_to_row[sourceIndex] = row
+        # return self.createIndex(self._index_to_row[sourceIndex], sourceIndex.column())
+
+    def mapToSource(self, proxyIndex: QModelIndex) -> QModelIndex:
+        ...
 
     def filterDataChanged(self, topLeft, bottomRight, roles):
-        # TODO: selection range does not work (is not valid) on topLeft=Ensemble1, bottomRight=1st g2
-        # topLeft is the highest ancesestor of the item that was checked/unchecked
-        # bottomRight is the deepest child of the item that was checked/unchecked
-        # [x]            - topLeft
-        #    []
-        #       []                       new top left
-        #       []      -- bottomRight
-        #    []
-        #       []                       new bottom right
+        """Custom slot connected from the source model's dataChanged signal.
 
-        # iterate over all children of topLeft; for all of their children emit ranges
-        # Map the range to the proxy model as a new Qselection... (hopefully)
-        selection_range = QItemSelectionRange(topLeft, bottomRight)
+        Finds all the intents (leaves) in the range of topLeft to bottomRight.
+        Then, applies the filterAcceptsRow filter to these intents.
+        After filtering, emits dataChanged for only the intents (leaves), not any ancestors.
+        """
 
-        # Get a list of all intent indexes (with .selectedIndexes(), hopefully)
-        selected_indexes = selection_range.indexes()
+        if Qt.CheckStateRole in roles:
+            print("\nfilterDataChanged\n")
 
-        intent_indexes = filter(lambda index: self.filterAcceptsRow(index.row(), index.parent()), selected_indexes)
+            children_indexes = []
 
-        index_map = defaultdict(list)
-        for index in intent_indexes:
-            index_map[index.parent()].append(index)
+            # self.sourceModel()
+            model = topLeft.model()
 
-        for indices in index_map.values():
-            self.dataChanged.emit(indices[0], indices[-1], roles)
+            # TODO: handle when topLeft and bottomRight are intents.
 
-        # self.dataChanged.emit(topLeft, bottomRight, roles)
+            for child in range(topLeft.model().rowCount(topLeft)):
+                child_index = model.index(child, 0, topLeft)
+                for grandchild in range(model.rowCount(child_index)):
+                    children_indexes.append(model.index(grandchild, 0, child_index))
 
-    # def data(self, index, role=Qt.DisplayRole):
-    #     if role == EnsembleModel.canvas_role:
-    #         return self.canvas_manager.canvas_from_index(index)
-    #     return super(CanvasProxyModel, self).data(index, role)
+            # Note that these are all source model indexes
+            intent_indexes = list(filter(lambda index: index.data(EnsembleModel.state_changed_role)
+                                            and self.filterAcceptsRow(index.row(), index.parent()), children_indexes))
+
+            proxy_indexes = []
+            index_map = defaultdict(list)
+            for index in intent_indexes:
+                index_map[index.parent()].append(index)
+                index.model().setData(index, False, EnsembleModel.state_changed_role)
+                proxy_indexes.append(self.mapFromSource(index))
+                print(f"\tintent_index: {index.data()}")
+
+            for i in proxy_indexes:
+                print(f"\tproxy_index: {i.data()}")
+
+            print(f"\tindex_map: {index_map}")
+            for indices in index_map.values():
+                print(f"\t\tdataChanged.emit({indices[0].data()}, {indices[-1].data()}, {roles})")
+                self.dataChanged.emit(proxy_indexes[0],
+                                      proxy_indexes[-1],
+                                      roles)
 
     def filterAcceptsRow(self, row, parent):
-        # TODO why is row 0 when we:  check tau 0, check tau 1, uncheck tau 1?
-        index = self.index(row, 0, parent)
-        data_type_role = index.data(role=self.sourceModel().data_type_role)
-        parent_check_state = self.sourceModel().data(parent, Qt.CheckStateRole)
+        """Re-implemented to provided a custom filtering mechanism.
+
+        Filter only accepts checked Intents.
+        """
+        source_index = self.sourceModel().index(row, 0, parent)
+        data_type_role = source_index.data(role=self.sourceModel().data_type_role)
+        # parent_check_state = self.sourceModel().data(parent, Qt.CheckStateRole)
+        check_state_role = source_index.data(role=Qt.CheckStateRole)
 
         temp_ret_val = False
 
-        if data_type_role == WorkspaceDataType.Intent and parent_check_state != Qt.Unchecked:
+        if data_type_role == WorkspaceDataType.Intent and check_state_role != Qt.Unchecked:
+            proxy_index = self.createIndex(row, 0, source_index.internalPointer())
+            self._sourceToProxy[source_index] = proxy_index
             temp_ret_val = True
 
         return temp_ret_val
