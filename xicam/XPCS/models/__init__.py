@@ -1,9 +1,10 @@
+import weakref
 from collections import defaultdict
 from itertools import count
 from typing import Any
 
 from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, \
-    QItemSelectionRange
+    QItemSelectionRange, QAbstractItemModel
 from qtpy.QtGui import QStandardItemModel
 
 from xicam.core.msg import logMessage, WARNING
@@ -207,6 +208,63 @@ class EnsembleModel(TreeModel):
             ensemble = ensemble_item.data(Qt.UserRole)
             ensemble.name = name
             ensemble_item.setData(name, Qt.DisplayRole)
+
+
+class IntentsModel(QAbstractItemModel):
+    def __init__(self):
+        super(IntentsModel, self).__init__()
+
+        self._source_model: QAbstractItemModel = None
+
+    def _intent_source_indexes(self):
+        for ensemble_row in range(self._source_model.rowCount(QModelIndex())):
+            ensemble_index = self._source_model.index(ensemble_row, 0)
+            for run_row in range(self._source_model.rowCount(ensemble_index)):
+                run_index = self._source_model.index(run_row, 0, ensemble_index)
+                for intent_row in range(self._source_model.rowCount(run_index)):
+                    intent_index = self._source_model.index(intent_row, 0, run_index)
+                    if intent_index.data(Qt.CheckStateRole) != Qt.Unchecked:
+                        yield intent_index
+
+    @property
+    def _intents(self):
+        intents = [index.data(EnsembleModel.object_role) for index in self._intent_source_indexes()]
+        return intents
+
+    def setSourceModel(self, model):
+        self._source_model = model
+        self._source_model.dataChanged.connect(self.dataChanged)
+
+    def index(self, row, column, parent=QModelIndex()):
+        return self.createIndex(row, column, self._intents[row])
+
+    def parent(self, child):
+        return QModelIndex()
+
+    def rowCount(self, parent=QModelIndex()):
+        if not parent.isValid():
+            return len(self._intents)
+        else:
+            return 0
+
+    def columnCount(self, parent):
+        if not parent.isValid():
+            return 1
+        else:
+            return 0
+
+    def data(self, index, role=Qt.DisplayRole):
+        if not index.isValid():
+            return None
+
+        elif role == Qt.DisplayRole:
+            intent = index.internalPointer()  # must call because its a weakref
+            return intent.name
+
+        elif role == EnsembleModel.object_role:
+            return index.internalPointer()
+
+        return None
 
 
 class CanvasProxyModel(QSortFilterProxyModel):
