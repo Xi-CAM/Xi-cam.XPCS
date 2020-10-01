@@ -21,10 +21,15 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     # Use singly-sourced key name
     g2 = getattr(run_catalog, stream).to_dask().rename({g2_field: g2_projection_key,
                                                         g2_error_field: g2_error_projection_key})
-    return [
-        # PlotIntent(y=g2_curve, x=g2_curve['g2'], category=g2_projection_key.split("/")[-1])
-        # for g2_curve in g2[g2_projection_key]
-        PlotIntent(y=g2_curve, x=g2_curve['g2'], labels={"left": "g2", "bottom": "tau"})
-        for g2_curve in g2[g2_projection_key]
-    ]
+    # return [
+    #     # PlotIntent(y=g2_curve, x=g2_curve['g2'], category=g2_projection_key.split("/")[-1])
+    #     # for g2_curve in g2[g2_projection_key]
+    #     PlotIntent(y=g2_curve, x=g2_curve['g2'], labels={"left": "g2", "bottom": "tau"})
+    #     for g2_curve in g2[g2_projection_key]
+    # ]
+    l = []
+    for i in range(len(g2[g2_projection_key])):
+        g2_curve = g2[g2_projection_key][i]
+        l.append(PlotIntent(y=g2_curve, x=g2_curve['g2'], labels={"left": "g2", "bottom": "tau"}, temp=str(i)))
+    return l
     # TODO: additionally return intents for masks, rois
