@@ -1,7 +1,8 @@
 from typing import List
 from databroker.core import BlueskyRun
-from xicam.core.intents import Intent, PlotIntent
+from xicam.core.intents import Intent, PlotIntent, ImageIntent
 from ..ingestors import g2_projection_key, g2_error_projection_key
+from scipy.misc import face
 
 
 # TODO: Hint -> Intent
@@ -31,5 +32,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     for i in range(len(g2[g2_projection_key])):
         g2_curve = g2[g2_projection_key][i]
         l.append(PlotIntent(y=g2_curve, x=g2_curve['g2'], labels={"left": "g2", "bottom": "tau"}))
+
+    l.append(ImageIntent(image=face(True), name='SAXS 2D'),)
     return l
     # TODO: additionally return intents for masks, rois
