@@ -49,7 +49,7 @@ class XicamCanvasManager(CanvasManager):
         if canvas:
             drop_completely = canvas.unrender(intent)
 
-    def canvas_from_row(self, row: int, model, parent_index):
+    def canvas_from_row(self, row: int, model, parent_index=QModelIndex()):
         # TODO: model.index v. model.sourceModel().index (i.e. should this only be Proxy Model, or EnsembleModel, or both)?
         return self.canvas_from_index(model.index(row, 0, parent_index))
 
@@ -62,8 +62,9 @@ class XicamCanvasManager(CanvasManager):
             return None
 
         # Canvas exists for index, return
-        # TODO: index should not be 'Ensemble 1'... this causes recursing into canvas_from_index...
-        canvas = index.data(EnsembleModel.canvas_role)
+        # TODO: in tab view, with multiple intents selected (e.g. 2 rows checked),
+        #       non-0 row intents (every intent except first) does not have a valid object in canvas_role
+        canvas = index.model().data(index, EnsembleModel.canvas_role)
         if canvas:
             return canvas
 
@@ -72,6 +73,7 @@ class XicamCanvasManager(CanvasManager):
             if self.is_matching_canvas_type(index, match_index):
                 canvas = match_index.model().data(match_index, EnsembleModel.canvas_role)
                 if canvas is not None:
+                    index.model().setData(index, EnsembleModel.canvas_role)
                     return canvas
 
         # Does not exist, create new canvas and return
@@ -87,9 +89,7 @@ class XicamCanvasManager(CanvasManager):
         return canvas
 
     @classmethod
-    def all_intent_indexes(cls, model: TreeModel, parent_index=None):
-        if parent_index is None:
-            parent_index = model.index(0, 0, QModelIndex())
+    def all_intent_indexes(cls, model: TreeModel, parent_index=QModelIndex()):
 
         for row in range(model.rowCount(parent_index)):
             child_index = model.index(row, 0, parent_index)
@@ -98,6 +98,7 @@ class XicamCanvasManager(CanvasManager):
                 yield child_index
             elif model.hasChildren(child_index):
                 yield from cls.all_intent_indexes(model, child_index)
+        print()
 
     def is_matching_canvas_type(self, index: QModelIndex, match_index: QModelIndex):
         match_intent = match_index.data(EnsembleModel.object_role)
@@ -161,13 +162,11 @@ class EnsembleModel(TreeModel):
     object_role: contains a reference to item's data (this is the custom UserRole commonly used as Qt.UserRole + 1)
     data_type_role: indicates what WorkspaceDataType the item is
     canvas_role: reference to an associated canvas (may not be set if not applicable)
-    state_changed_role: boolean indicating when the item is in process of dataChanged
-                        (see CanvasProxyModel's filtering methods)
+
     """
     object_role = Qt.UserRole + 1
     data_type_role = Qt.UserRole + 2
     canvas_role = Qt.UserRole + 3
-    state_changed_role = Qt.UserRole + 4
 
 
     def __init__(self, parent=None):
@@ -179,10 +178,10 @@ class EnsembleModel(TreeModel):
         item = self.getItem(index)
         # if role in (self.object_role, self.canvas_role, self.data_type_role):
             # item.itemData[role] = value
-        if role == Qt.CheckStateRole:
-            success = super(EnsembleModel, self).setData(index, True, self.state_changed_role)
-            if not success:
-                return False
+        # if role == Qt.CheckStateRole:
+        #     success = super(EnsembleModel, self).setData(index, True, self.state_changed_role)
+        #     if not success:
+        #         return False
         return super(EnsembleModel, self).setData(index, value, role)
 
     def add_ensemble(self, ensemble: Ensemble):
@@ -247,15 +246,29 @@ class IntentsModel(QAbstractItemModel):
 
     @property
     def _intents(self):
-        intents = [index.data(EnsembleModel.object_role) for index in self._intent_source_indexes()]
+        intents = [index.internalPointer() for index in self._intent_source_indexes()]
         return intents
 
     def setSourceModel(self, model):
         self._source_model = model
         self._source_model.dataChanged.connect(self.dataChanged)
 
+    def sourceModel(self):
+        return self._source_model
+
     def index(self, row, column, parent=QModelIndex()):
-        return self.createIndex(row, column, self._intents[row])
+        try:
+            print(f"IntentsModel.index({row}, {column}, {parent.isValid()}")
+            i = self.createIndex(row, column, self._intents[row])
+            return i
+        except Exception as e:
+            print(f"intents, len {len(self._intents)}")
+            for i in self._intents:
+                print(f"\t{i.itemData}")
+            if row in self._intents:
+                print(f"index({row}, {column}, {self._intents[row]})")
+            return QModelIndex()
+        # return self.createIndex(row, column, self._intents[row])
 
     def parent(self, child):
         return QModelIndex()
@@ -273,164 +286,16 @@ class IntentsModel(QAbstractItemModel):
             return 0
 
     def data(self, index, role=Qt.DisplayRole):
-        if not index.isValid():
-            return None
-
-        elif role == Qt.DisplayRole:
-            intent = index.internalPointer()  # must call because its a weakref
-            return intent.name
-
-        elif role == EnsembleModel.object_role:
-            return index.internalPointer()
-
-        return None
-
-
-class CanvasProxyModel(QSortFilterProxyModel):
-    """Proxy model intended to store checked Intents in a flat structure (achieved by custom filtering).
-
-    Intended to use the EnsembleModel (TreeModel) as its source model.
-    Also, stores a publicly accessible canvas_manager reference.
-    """
-    def __init__(self):
-        super(CanvasProxyModel, self).__init__()
-        self.setRecursiveFilteringEnabled(True)
-        self.canvas_manager = XicamCanvasManager()
-
-    def setSourceModel(self, model):
-        """Sets the source model for this proxy model.
-
-        Needs to forward the source model's dataChanged signal to this proxy's dataChanged signal.
-        This is intercepted by a filtering slot, which then will emit dataChanged signals.
-        """
-        super(CanvasProxyModel, self).setSourceModel(model)
-        self._proxyToSource = {}
-        self._sourceToProxy = {}
-        self._index_to_row = {}
-        model.dataChanged.connect(self.filterDataChanged)
-
-# need to build proxy indexes to map to the source model
-
-    def index(self, row: int, column: int, parent: QModelIndex = ...) -> QModelIndex:
-
-    def mapFromSource(self, sourceIndex: QModelIndex) -> QModelIndex:
-        if sourceIndex in self._sourceToProxy:
-            return self._sourceToProxy[sourceIndex]
-        proxyIndex = self.createIndex(self.rowCount(), 0, sourceIndex.internalPointer())
-        self._sourceToProxy[sourceIndex] = proxyIndex
-        return proxyIndex
-
-        # if sourceIndex not in self._index_to_row:
-        #     if not self._index_to_row:
-        #         self._index_to_row[sourceIndex] = 0
-        #     else:
-        #         row = min(self._index_to_row.values()) + 1
-        #         self._index_to_row[sourceIndex] = row
-        # return self.createIndex(self._index_to_row[sourceIndex], sourceIndex.column())
-
-    def mapToSource(self, proxyIndex: QModelIndex) -> QModelIndex:
-        ...
-
-    def filterDataChanged(self, topLeft, bottomRight, roles):
-        """Custom slot connected from the source model's dataChanged signal.
-
-        Finds all the intents (leaves) in the range of topLeft to bottomRight.
-        Then, applies the filterAcceptsRow filter to these intents.
-        After filtering, emits dataChanged for only the intents (leaves), not any ancestors.
-        """
-
-        if Qt.CheckStateRole in roles:
-            print("\nfilterDataChanged\n")
-
-            children_indexes = []
-
-            # self.sourceModel()
-            model = topLeft.model()
-
-            # TODO: handle when topLeft and bottomRight are intents.
-
-            for child in range(topLeft.model().rowCount(topLeft)):
-                child_index = model.index(child, 0, topLeft)
-                for grandchild in range(model.rowCount(child_index)):
-                    children_indexes.append(model.index(grandchild, 0, child_index))
-
-            # Note that these are all source model indexes
-            intent_indexes = list(filter(lambda index: index.data(EnsembleModel.state_changed_role)
-                                            and self.filterAcceptsRow(index.row(), index.parent()), children_indexes))
-
-            proxy_indexes = []
-            index_map = defaultdict(list)
-            for index in intent_indexes:
-                index_map[index.parent()].append(index)
-                index.model().setData(index, False, EnsembleModel.state_changed_role)
-                proxy_indexes.append(self.mapFromSource(index))
-                print(f"\tintent_index: {index.data()}")
-
-            for i in proxy_indexes:
-                print(f"\tproxy_index: {i.data()}")
-
-            print(f"\tindex_map: {index_map}")
-            for indices in index_map.values():
-                print(f"\t\tdataChanged.emit({indices[0].data()}, {indices[-1].data()}, {roles})")
-                self.dataChanged.emit(proxy_indexes[0],
-                                      proxy_indexes[-1],
-                                      roles)
-
-    def filterAcceptsRow(self, row, parent):
-        """Re-implemented to provided a custom filtering mechanism.
-
-        Filter only accepts checked Intents.
-        """
-        source_index = self.sourceModel().index(row, 0, parent)
-        data_type_role = source_index.data(role=self.sourceModel().data_type_role)
-        # parent_check_state = self.sourceModel().data(parent, Qt.CheckStateRole)
-        check_state_role = source_index.data(role=Qt.CheckStateRole)
-
-        temp_ret_val = False
-
-        if data_type_role == WorkspaceDataType.Intent and check_state_role != Qt.Unchecked:
-            proxy_index = self.createIndex(row, 0, source_index.internalPointer())
-            self._sourceToProxy[source_index] = proxy_index
-            temp_ret_val = True
-
-        return temp_ret_val
-
-
-if __name__ == "__main__":
-    from databroker.in_memory import BlueskyInMemoryCatalog
-    from qtpy.QtWidgets import QApplication, QMainWindow, QSplitter, QListView, QTreeView
-    from xicam.XPCS.ingestors import ingest_nxXPCS
-
-    app = QApplication([])
-
-
-    uris = ["/home/ihumphrey/Downloads/B009_Aerogel_1mm_025C_att1_Lq0_001_0001-10000.nxs"]
-    document = list(ingest_nxXPCS(uris))
-    uid = document[0][1]["uid"]
-    catalog = BlueskyInMemoryCatalog()
-    catalog.upsert(document[0][1], document[-1][1], ingest_nxXPCS, [uris], {})
-    cat = catalog[uid]
-
-    source_model = EnsembleModel()
-    ensemble = Ensemble()
-    ensemble.append_catalog(cat)
-    source_model.add_ensemble(ensemble)
-
-    data_selector_view = QTreeView()
-    data_selector_view.setModel(source_model)
-
-    proxy_model = CanvasProxyModel()
-    proxy_model.setSourceModel(source_model)
-    proxy_view = QListView()
-    proxy_view.setModel(proxy_model)
-
-    widget = QSplitter()
-    widget.addWidget(data_selector_view)
-    widget.addWidget(proxy_view)
-
-
-    window = QMainWindow()
-    window.setCentralWidget(widget)
-    window.show()
-
-    app.exec()
+        # print(f"IntentsModel.data({index.data()}, {role} -> {self._source_model.data(index, role)}")
+        return self._source_model.data(index, role)
+    #     if not index.isValid():
+    #         return None
+    #
+    #     elif role == Qt.DisplayRole:
+    #         intent = index.internalPointer()  # must call because its a weakref
+    #         return intent.name
+    #
+    #     elif role == EnsembleModel.object_role:
+    #         return index.internalPointer()
+    #
+    #     return None

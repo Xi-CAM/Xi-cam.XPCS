@@ -30,6 +30,6 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     l = []
     for i in range(len(g2[g2_projection_key])):
         g2_curve = g2[g2_projection_key][i]
-        l.append(PlotIntent(y=g2_curve, x=g2_curve['g2'], labels={"left": "g2", "bottom": "tau"}, temp=str(i)))
+        l.append(PlotIntent(y=g2_curve, x=g2_curve['g2'], labels={"left": "g2", "bottom": "tau"}))
     return l
     # TODO: additionally return intents for masks, rois
