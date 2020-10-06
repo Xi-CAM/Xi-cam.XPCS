@@ -40,6 +40,13 @@ class XicamCanvasManager(CanvasManager):
     def __init__(self):
         super(XicamCanvasManager, self).__init__()
 
+    def canvases(self, model):
+        # Get all canvases from a model
+        canvases = []
+        for row in range(model.rowCount()):
+            canvases.append(self.canvas_from_row(row, model))
+        return canvases
+
     def canvas_from_registry(self, canvas_name, registry):
         return registry.get_plugin_by_name(canvas_name, "IntentCanvasPlugin")()
 
@@ -73,7 +80,7 @@ class XicamCanvasManager(CanvasManager):
             if self.is_matching_canvas_type(index, match_index):
                 canvas = match_index.model().data(match_index, EnsembleModel.canvas_role)
                 if canvas is not None:
-                    index.model().setData(index, EnsembleModel.canvas_role)
+                    index.model().setData(index, canvas, EnsembleModel.canvas_role)
                     return canvas
 
         # Does not exist, create new canvas and return
