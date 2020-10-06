@@ -1,7 +1,7 @@
 import weakref
 from collections import defaultdict
 from itertools import count
-from typing import Any
+from typing import Any, List
 
 from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, \
     QItemSelectionRange, QAbstractItemModel
@@ -14,6 +14,7 @@ from xicam.plugins import manager as pluginmanager
 from xicam.gui.models.treemodel import TreeModel, TreeItem
 
 from xicam.XPCS.projectors.nexus import project_nxXPCS
+from xicam.plugins.intentcanvasplugin import IntentCanvas
 
 
 class CanvasManager:
@@ -34,102 +35,6 @@ class CanvasManager:
 
     # ImageIntentCanvas <- ImageWithRoiIntentCanvas
     # or (preferred) add logic in the ImageIntentCanvas render method
-
-
-class XicamCanvasManager(CanvasManager):
-    def __init__(self):
-        super(XicamCanvasManager, self).__init__()
-
-    def canvases(self, model):
-        # Get all canvases from a model
-        canvases = []
-        for row in range(model.rowCount()):
-            canvases.append(self.canvas_from_row(row, model))
-        return canvases
-
-    def canvas_from_registry(self, canvas_name, registry):
-        return registry.get_plugin_by_name(canvas_name, "IntentCanvasPlugin")()
-
-    def drop_canvas(self, key: QModelIndex):
-        intent = key.data(EnsembleModel.object_role)
-        canvas = key.data(EnsembleModel.canvas_role)
-        if canvas:
-            drop_completely = canvas.unrender(intent)
-
-    def canvas_from_row(self, row: int, model, parent_index=QModelIndex()):
-        # TODO: model.index v. model.sourceModel().index (i.e. should this only be Proxy Model, or EnsembleModel, or both)?
-        return self.canvas_from_index(model.index(row, 0, parent_index))
-
-    def canvas_from_index(self, index: QModelIndex):
-        if not index.isValid():
-            return None
-
-        if index.data(EnsembleModel.data_type_role) != WorkspaceDataType.Intent:
-            print(f'WARNING: canvas_from_index index {index} is not an intent')
-            return None
-
-        # Canvas exists for index, return
-        # TODO: in tab view, with multiple intents selected (e.g. 2 rows checked),
-        #       non-0 row intents (every intent except first) does not have a valid object in canvas_role
-        canvas = index.model().data(index, EnsembleModel.canvas_role)
-        if canvas:
-            return canvas
-
-        # There is another canvas we know about we should use
-        for match_index in self.all_intent_indexes(index.model()):
-            if self.is_matching_canvas_type(index, match_index):
-                canvas = match_index.model().data(match_index, EnsembleModel.canvas_role)
-                if canvas is not None:
-                    index.model().setData(index, canvas, EnsembleModel.canvas_role)
-                    return canvas
-
-        # Does not exist, create new canvas and return
-        intent = index.model().data(index, EnsembleModel.object_role)
-        canvas_name = intent.canvas
-        registry = pluginmanager
-        canvas = self.canvas_from_registry(canvas_name, registry)
-
-        index.model().setData(index, canvas, EnsembleModel.canvas_role)
-        # TODO why doesn't above modify index.data(EnsembleMOdel.canvas_role)?
-        index.model()
-        # canvas.render(intent)
-        return canvas
-
-    @classmethod
-    def all_intent_indexes(cls, model: TreeModel, parent_index=QModelIndex()):
-
-        for row in range(model.rowCount(parent_index)):
-            child_index = model.index(row, 0, parent_index)
-            data_type = model.data(child_index, EnsembleModel.data_type_role)
-            if data_type is WorkspaceDataType.Intent:
-                yield child_index
-            elif model.hasChildren(child_index):
-                yield from cls.all_intent_indexes(model, child_index)
-        print()
-
-    def is_matching_canvas_type(self, index: QModelIndex, match_index: QModelIndex):
-        match_intent = match_index.data(EnsembleModel.object_role)
-        intent = index.data(EnsembleModel.object_role)
-        if not isinstance(intent, Intent):
-            print(f"WARNING: during matching, index {index.data} is not an Intent")
-            return False
-        if not isinstance(match_intent, Intent):
-            print(f"WARNING: during matching, match_index {index.data} is not an Intent")
-            return False
-        # assert isinstance(intent, Intent)
-        # assert isinstance(match_intent, Intent)
-
-        match_canvas_type_string = match_intent.canvas
-        intent_canvas_type_string = intent.canvas
-
-        if intent_canvas_type_string != match_canvas_type_string:
-            return False
-
-        if intent.match_key != match_intent.match_key:
-            return False
-
-        return True
-
 
 class Ensemble:
     """Represents an organized collection of catalogs."""
@@ -306,3 +211,101 @@ class IntentsModel(QAbstractItemModel):
     #         return index.internalPointer()
     #
     #     return None
+
+
+class XicamCanvasManager(CanvasManager):
+    def __init__(self):
+        super(XicamCanvasManager, self).__init__()
+
+    def canvases(self, model: IntentsModel) -> List[IntentCanvas]:
+        """Retrieve all canvases from a given model."""
+        # Create a mapping from canvas to rows to get unique canvas references.
+        canvas_to_row = defaultdict(list)
+        for row in range(model.rowCount()):
+            canvas = self.canvas_from_row(row, model)
+            canvas_to_row[canvas].append(row)
+        # Only return canvases if they have at least one associated row (sanity check).
+        return [canvas for canvas, rows in canvas_to_row.items() if len(rows)]
+
+    def canvas_from_registry(self, canvas_name, registry):
+        return registry.get_plugin_by_name(canvas_name, "IntentCanvasPlugin")()
+
+    def drop_canvas(self, key: QModelIndex):
+        intent = key.data(EnsembleModel.object_role)
+        canvas = key.data(EnsembleModel.canvas_role)
+        if canvas:
+            drop_completely = canvas.unrender(intent)
+
+    def canvas_from_row(self, row: int, model, parent_index=QModelIndex()):
+        # TODO: model.index v. model.sourceModel().index (i.e. should this only be Proxy Model, or EnsembleModel, or both)?
+        return self.canvas_from_index(model.index(row, 0, parent_index))
+
+    def canvas_from_index(self, index: QModelIndex):
+        if not index.isValid():
+            return None
+
+        if index.data(EnsembleModel.data_type_role) != WorkspaceDataType.Intent:
+            print(f'WARNING: canvas_from_index index {index} is not an intent')
+            return None
+
+        # Canvas exists for index, return
+        # TODO: in tab view, with multiple intents selected (e.g. 2 rows checked),
+        #       non-0 row intents (every intent except first) does not have a valid object in canvas_role
+        canvas = index.model().data(index, EnsembleModel.canvas_role)
+        if canvas:
+            return canvas
+
+        # There is another canvas we know about we should use
+        for match_index in self.all_intent_indexes(index.model()):
+            if self.is_matching_canvas_type(index, match_index):
+                canvas = match_index.model().data(match_index, EnsembleModel.canvas_role)
+                if canvas is not None:
+                    index.model().setData(index, canvas, EnsembleModel.canvas_role)
+                    return canvas
+
+        # Does not exist, create new canvas and return
+        intent = index.model().data(index, EnsembleModel.object_role)
+        canvas_name = intent.canvas
+        registry = pluginmanager
+        canvas = self.canvas_from_registry(canvas_name, registry)
+
+        index.model().setData(index, canvas, EnsembleModel.canvas_role)
+        # TODO why doesn't above modify index.data(EnsembleMOdel.canvas_role)?
+        index.model()
+        # canvas.render(intent)
+        return canvas
+
+    @classmethod
+    def all_intent_indexes(cls, model: TreeModel, parent_index=QModelIndex()):
+
+        for row in range(model.rowCount(parent_index)):
+            child_index = model.index(row, 0, parent_index)
+            data_type = model.data(child_index, EnsembleModel.data_type_role)
+            if data_type is WorkspaceDataType.Intent:
+                yield child_index
+            elif model.hasChildren(child_index):
+                yield from cls.all_intent_indexes(model, child_index)
+        print()
+
+    def is_matching_canvas_type(self, index: QModelIndex, match_index: QModelIndex):
+        match_intent = match_index.data(EnsembleModel.object_role)
+        intent = index.data(EnsembleModel.object_role)
+        if not isinstance(intent, Intent):
+            print(f"WARNING: during matching, index {index.data} is not an Intent")
+            return False
+        if not isinstance(match_intent, Intent):
+            print(f"WARNING: during matching, match_index {index.data} is not an Intent")
+            return False
+        # assert isinstance(intent, Intent)
+        # assert isinstance(match_intent, Intent)
+
+        match_canvas_type_string = match_intent.canvas
+        intent_canvas_type_string = intent.canvas
+
+        if intent_canvas_type_string != match_canvas_type_string:
+            return False
+
+        if intent.match_key != match_intent.match_key:
+            return False
+
+        return True
