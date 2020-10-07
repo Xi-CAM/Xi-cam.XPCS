@@ -7,6 +7,7 @@ from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIn
     QItemSelectionRange, QAbstractItemModel
 from qtpy.QtGui import QStandardItemModel
 
+from xicam.core.data.bluesky_utils import display_name
 from xicam.core.msg import logMessage, WARNING
 from xicam.core.workspace import WorkspaceDataType
 from xicam.core.intents import Intent
@@ -104,7 +105,7 @@ class EnsembleModel(TreeModel):
 
         for catalog in ensemble.catalogs:
             catalog_item = TreeItem(ensemble_item)
-            catalog_name = getattr(catalog, "name", "catalog")
+            catalog_name = display_name(catalog)
             catalog_item.setData(catalog_name, Qt.DisplayRole)
             catalog_item.setData(catalog, self.object_role)
             catalog_item.setData(WorkspaceDataType.Catalog, self.data_type_role)
