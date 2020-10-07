@@ -124,6 +124,7 @@ class EnsembleModel(TreeModel):
             ensemble_item.appendChild(catalog_item)
 
         self.rootItem.appendChild(ensemble_item)
+        self.layoutChanged.emit()
 
     def remove_ensemble(self, ensemble):
         # TODO
