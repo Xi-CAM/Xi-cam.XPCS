@@ -113,7 +113,7 @@ class EnsembleModel(TreeModel):
                 intents = projector(catalog)
                 for intent in intents:
                     intent_item = TreeItem(catalog_item)
-                    intent_item.setData(intent.name, Qt.DisplayRole)
+                    intent_item.setData(intent.item_name, Qt.DisplayRole)
                     intent_item.setData(intent, self.object_role)
                     intent_item.setData(WorkspaceDataType.Intent, self.data_type_role)
                     catalog_item.appendChild(intent_item)
@@ -209,7 +209,7 @@ class IntentsModel(QAbstractItemModel):
 
         elif role == Qt.DisplayRole:
             intent = index.internalPointer()  # must call because its a weakref
-            return intent.name
+            return intent.item_name
 
         elif role == EnsembleModel.object_role:
             return index.internalPointer()
@@ -232,7 +232,7 @@ class XicamCanvasManager(CanvasManager):
         return [canvas for canvas, rows in canvas_to_row.items() if len(rows)]
 
     def canvas_from_registry(self, canvas_class_name, registry, canvas_name):
-        return registry.get_plugin_by_name(canvas_class_name, "IntentCanvasPlugin")(name=canvas_name)
+        return registry.get_plugin_by_name(canvas_class_name, "IntentCanvasPlugin")(canvas_name=canvas_name)
 
     def drop_canvas(self, key: QModelIndex):
         intent = key.data(EnsembleModel.object_role)
@@ -271,7 +271,7 @@ class XicamCanvasManager(CanvasManager):
         intent = index.model().data(index, EnsembleModel.object_role)
         canvas_class_name = intent.canvas
         registry = pluginmanager
-        canvas = self.canvas_from_registry(canvas_class_name, registry, intent.name)
+        canvas = self.canvas_from_registry(canvas_class_name, registry, intent.canvas_name)
 
         index.model().setData(index, canvas, EnsembleModel.canvas_role)
         return canvas

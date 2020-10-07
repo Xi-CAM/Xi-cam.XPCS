@@ -34,12 +34,13 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     l = []
     for i in range(len(g2[g2_projection_key])):
         g2_curve = g2[g2_projection_key][i]
-        g2_roi_name = g2[g2_roi_names_key][i]
-        l.append(PlotIntent(name=g2_roi_name,
+        # g2_roi_name = g2[g2_roi_names_key][i].values[0]
+        g2_roi_name = g2[g2_roi_names_key].values[i]  # FIXME: talk to Dan about how to properly define string data keys
+        l.append(PlotIntent(item_name=g2_roi_name,
                             y=g2_curve,
                             x=g2_curve['g2'],
                             labels={"left": "g2", "bottom": "tau"}))
 
-    l.append(ImageIntent(image=face(True), name='SAXS 2D'),)
+    l.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
     return l
     # TODO: additionally return intents for masks, rois
