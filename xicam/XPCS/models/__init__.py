@@ -1,14 +1,14 @@
 import weakref
 from collections import defaultdict
 from itertools import count
-from typing import Any, List, Iterable
+from typing import Any, List, Iterable, Callable
 
 from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, \
     QItemSelectionRange, QAbstractItemModel
 from qtpy.QtGui import QStandardItemModel
 
 from xicam.core.msg import logMessage, WARNING
-from xicam.core.workspace import WorkspaceDataType#, Ensemble
+from xicam.core.workspace import WorkspaceDataType
 from xicam.core.intents import Intent
 from xicam.plugins import manager as pluginmanager
 from xicam.gui.models.treemodel import TreeModel, TreeItem
@@ -80,7 +80,6 @@ class EnsembleModel(TreeModel):
     data_type_role = Qt.UserRole + 2
     canvas_role = Qt.UserRole + 3
 
-
     def __init__(self, parent=None):
         super(EnsembleModel, self).__init__(parent)
 
@@ -96,7 +95,7 @@ class EnsembleModel(TreeModel):
         #         return False
         return super(EnsembleModel, self).setData(index, value, role)
 
-    def add_ensemble(self, ensemble: Ensemble):
+    def add_ensemble(self, ensemble: Ensemble, projector: Callable):
         ensemble_item = TreeItem(self.rootItem)
         # ensemble_item = ensemble
         ensemble_item.setData(ensemble.name, Qt.DisplayRole)
@@ -111,7 +110,7 @@ class EnsembleModel(TreeModel):
             catalog_item.setData(WorkspaceDataType.Catalog, self.data_type_role)
 
             try:
-                intents = project_nxXPCS(catalog)
+                intents = projector(catalog)
                 for intent in intents:
                     intent_item = TreeItem(catalog_item)
                     intent_item.setData(intent.name, Qt.DisplayRole)
@@ -179,19 +178,13 @@ class IntentsModel(QAbstractItemModel):
 
     def index(self, row, column, parent=QModelIndex()):
         try:
-            print(f"IntentsModel.index({row}, {column}, {parent.isValid()}")
             intent_index = self._intent_source_indexes[row]  # FIXME: THIS IS KINDA INEFFICIENT
             i = self.createIndex(row, column, intent_index)
             return i
 
-        except Exception as e:
-            # print(f"intents, len {len(self._intents)}")
-            # for i in self._intents:
-            #     print(f"\t{i.itemData}")
-            # if row in self._intents:
-            #     print(f"index({row}, {column}, {self._intents[row]})")
+        # FIXME: target specific exception or handle differently
+        except Exception:
             return QModelIndex()
-        # return self.createIndex(row, column, self._intents[row])
 
     def parent(self, child):
         return QModelIndex()
