@@ -11,6 +11,7 @@ mimetypes.add_type('application/x-hdf5', '.nxs')
 
 g2_projection_key = 'entry/XPCS/data/g2'
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
+g2_roi_names_key = 'entry/data/masks/mask/mask_names'
 # TODO: add var for rest of projection keys
 
 projections = [{'name': 'nxXPCS',
@@ -28,10 +29,10 @@ projections = [{'name': 'nxXPCS',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'masks'},
-                     'entry/XPCS/data/rois': {'type': 'linked',
-                                              'stream': 'primary',
-                                              'location': 'event',
-                                              'field': 'g2'}, }
+                     g2_roi_names_key: {'type': 'linked',
+                                         'stream': 'primary',
+                                         'location': 'event',
+                                         'field': 'g2_roi_names'}, }
 
                 }]
 
@@ -42,10 +43,11 @@ def ingest_nxXPCS(paths):
 
     h5 = h5py.File(path, 'r')
 
-    g2 = h5['entry/XPCS/data/g2']
-    g2_errors = h5['entry/XPCS/data/g2_errors']
-    masks = h5['entry/XPCS/data/masks']
-    rois = h5['entry/XPCS/data/rois']
+    g2 = h5[g2_projection_key]
+    g2_errors = h5[g2_error_projection_key]
+    # masks = h5['entry/XPCS/data/masks']
+    # rois = h5['entry/XPCS/data/rois']
+    g2_roi_names = list(map(lambda bytestring: bytestring.decode('UTF-8'), h5[g2_roi_names_key][()]))
 
     # Compose run start
     run_bundle = event_model.compose_run()  # type: event_model.ComposeRunBundle
@@ -63,8 +65,10 @@ def ingest_nxXPCS(paths):
                        'g2_error_bars': {'source': source,
                                      'dtype': 'array',
                                      'dims': ('g2_errors',),
-                                     'shape': (g2.shape[0],)}
-                       }
+                                     'shape': (g2.shape[0],)},
+                       'g2_roi_names': {'source': source,
+                                        'dtype': 'string',
+                                        'shape': tuple()}}
 
     frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
                                                         name='primary',
@@ -76,7 +80,11 @@ def ingest_nxXPCS(paths):
 
     for i in range(num_events):
         t = time.time()
-        yield 'event', frame_stream_bundle.compose_event(data={'g2_curves': g2[:, i], 'g2_error_bars': g2_errors[:, i]},
-                                                         timestamps={'g2_curves': t, 'g2_error_bars': t})
+        yield 'event', frame_stream_bundle.compose_event(data={'g2_curves': g2[:, i],
+                                                               'g2_error_bars': g2_errors[:, i],
+                                                               'g2_roi_names': g2_roi_names[i]},
+                                                         timestamps={'g2_curves': t,
+                                                                     'g2_error_bars': t,
+                                                                     'g2_roi_names': t})
 
     yield 'stop', run_bundle.compose_stop()

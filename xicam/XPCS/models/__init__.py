@@ -231,8 +231,8 @@ class XicamCanvasManager(CanvasManager):
         # Only return canvases if they have at least one associated row (sanity check).
         return [canvas for canvas, rows in canvas_to_row.items() if len(rows)]
 
-    def canvas_from_registry(self, canvas_name, registry):
-        return registry.get_plugin_by_name(canvas_name, "IntentCanvasPlugin")()
+    def canvas_from_registry(self, canvas_class_name, registry, canvas_name):
+        return registry.get_plugin_by_name(canvas_class_name, "IntentCanvasPlugin")(name=canvas_name)
 
     def drop_canvas(self, key: QModelIndex):
         intent = key.data(EnsembleModel.object_role)
@@ -269,14 +269,11 @@ class XicamCanvasManager(CanvasManager):
 
         # Does not exist, create new canvas and return
         intent = index.model().data(index, EnsembleModel.object_role)
-        canvas_name = intent.canvas
+        canvas_class_name = intent.canvas
         registry = pluginmanager
-        canvas = self.canvas_from_registry(canvas_name, registry)
+        canvas = self.canvas_from_registry(canvas_class_name, registry, intent.name)
 
         index.model().setData(index, canvas, EnsembleModel.canvas_role)
-        # TODO why doesn't above modify index.data(EnsembleMOdel.canvas_role)?
-        index.model()
-        # canvas.render(intent)
         return canvas
 
     @classmethod
