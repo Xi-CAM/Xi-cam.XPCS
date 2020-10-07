@@ -1,7 +1,7 @@
 import weakref
 from collections import defaultdict
 from itertools import count
-from typing import Any, List
+from typing import Any, List, Iterable
 
 from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, \
     QItemSelectionRange, QAbstractItemModel
@@ -145,8 +145,9 @@ class IntentsModel(QAbstractItemModel):
         super(IntentsModel, self).__init__()
 
         self._source_model: QAbstractItemModel = None
+        self._source_indexes = []
 
-    def _intent_source_indexes(self):
+    def _intent_source_indexes_gen(self):
         for ensemble_row in range(self._source_model.rowCount(QModelIndex())):
             ensemble_index = self._source_model.index(ensemble_row, 0)
             for run_row in range(self._source_model.rowCount(ensemble_index)):
@@ -157,13 +158,21 @@ class IntentsModel(QAbstractItemModel):
                         yield intent_index
 
     @property
-    def _intents(self):
-        intents = [index.internalPointer() for index in self._intent_source_indexes()]
-        return intents
+    def _intent_source_indexes(self):
+        if not self._source_indexes:
+            self._source_indexes = list(self._intent_source_indexes_gen())
+        return self._source_indexes
 
     def setSourceModel(self, model):
         self._source_model = model
-        self._source_model.dataChanged.connect(self.dataChanged)
+        self._source_model.dataChanged.connect(self.sourceDataChanged)
+
+    def sourceDataChanged(self, topLeft: QModelIndex, bottomRight: QModelIndex, roles: Iterable[int] = ...) -> None:
+        # Invalidate cache
+        self._source_indexes.clear()
+
+        # TODO: translate source model indexes into intentsmodel indexes and emit those rather than emit all
+        self.dataChanged.emit(self.index(0, 0), self.index(self.rowCount()-1, 0), roles)
 
     def sourceModel(self):
         return self._source_model
@@ -171,14 +180,16 @@ class IntentsModel(QAbstractItemModel):
     def index(self, row, column, parent=QModelIndex()):
         try:
             print(f"IntentsModel.index({row}, {column}, {parent.isValid()}")
-            i = self.createIndex(row, column, self._intents[row])
+            intent_index = self._intent_source_indexes[row]  # FIXME: THIS IS KINDA INEFFICIENT
+            i = self.createIndex(row, column, intent_index)
             return i
+
         except Exception as e:
-            print(f"intents, len {len(self._intents)}")
-            for i in self._intents:
-                print(f"\t{i.itemData}")
-            if row in self._intents:
-                print(f"index({row}, {column}, {self._intents[row]})")
+            # print(f"intents, len {len(self._intents)}")
+            # for i in self._intents:
+            #     print(f"\t{i.itemData}")
+            # if row in self._intents:
+            #     print(f"index({row}, {column}, {self._intents[row]})")
             return QModelIndex()
         # return self.createIndex(row, column, self._intents[row])
 
@@ -187,7 +198,7 @@ class IntentsModel(QAbstractItemModel):
 
     def rowCount(self, parent=QModelIndex()):
         if not parent.isValid():
-            return len(self._intents)
+            return len(self._intent_source_indexes)
         else:
             return 0
 
@@ -199,18 +210,18 @@ class IntentsModel(QAbstractItemModel):
 
     def data(self, index, role=Qt.DisplayRole):
         # print(f"IntentsModel.data({index.data()}, {role} -> {self._source_model.data(index, role)}")
-        return self._source_model.data(index, role)
-    #     if not index.isValid():
-    #         return None
-    #
-    #     elif role == Qt.DisplayRole:
-    #         intent = index.internalPointer()  # must call because its a weakref
-    #         return intent.name
-    #
-    #     elif role == EnsembleModel.object_role:
-    #         return index.internalPointer()
-    #
-    #     return None
+
+        if not index.isValid():
+            return None
+
+        elif role == Qt.DisplayRole:
+            intent = index.internalPointer()  # must call because its a weakref
+            return intent.name
+
+        elif role == EnsembleModel.object_role:
+            return index.internalPointer()
+
+        return None
 
 
 class XicamCanvasManager(CanvasManager):
@@ -238,7 +249,7 @@ class XicamCanvasManager(CanvasManager):
 
     def canvas_from_row(self, row: int, model, parent_index=QModelIndex()):
         # TODO: model.index v. model.sourceModel().index (i.e. should this only be Proxy Model, or EnsembleModel, or both)?
-        return self.canvas_from_index(model.index(row, 0, parent_index))
+        return self.canvas_from_index(model.index(row, 0, parent_index).internalPointer())
 
     def canvas_from_index(self, index: QModelIndex):
         if not index.isValid():
