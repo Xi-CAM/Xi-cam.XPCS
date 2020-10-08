@@ -36,7 +36,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         g2_curve = g2[g2_projection_key][i]
         # g2_roi_name = g2[g2_roi_names_key][i].values[0]
         g2_roi_name = g2[g2_roi_names_key].values[i]  # FIXME: talk to Dan about how to properly define string data keys
-        l.append(PlotIntent(item_name=g2_roi_name,
+        l.append(PlotIntent(item_name=str(g2_roi_name),  # need str cast here, otherwise is type numpy.str_ (which Qt won't like in its DisplayRole)
                             y=g2_curve,
                             x=g2_curve['g2'],
                             labels={"left": "g2", "bottom": "tau"}))

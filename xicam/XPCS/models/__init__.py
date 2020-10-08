@@ -210,7 +210,7 @@ class IntentsModel(QAbstractItemModel):
             return None
 
         elif role == Qt.DisplayRole:
-            intent = index.internalPointer()  # must call because its a weakref
+            intent = index.internalPointer()
             return intent.item_name
 
         elif role == EnsembleModel.object_role:
@@ -290,7 +290,6 @@ class XicamCanvasManager(CanvasManager):
                 yield child_index
             elif model.hasChildren(child_index):
                 yield from cls.all_intent_indexes(model, child_index)
-        print()
 
     def is_matching_canvas_type(self, index: QModelIndex, match_index: QModelIndex):
         match_intent = match_index.data(EnsembleModel.object_role)
