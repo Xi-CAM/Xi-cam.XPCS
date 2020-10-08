@@ -1,7 +1,7 @@
 import weakref
 from collections import defaultdict
 from itertools import count
-from typing import Any, List, Iterable, Callable
+from typing import Any, List, Iterable, Callable, Generator
 
 from qtpy.QtCore import Qt, QIdentityProxyModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, \
     QItemSelectionRange, QAbstractItemModel
@@ -223,15 +223,17 @@ class XicamCanvasManager(CanvasManager):
     def __init__(self):
         super(XicamCanvasManager, self).__init__()
 
-    def canvases(self, model: IntentsModel) -> List[IntentCanvas]:
+    def canvases(self, model: IntentsModel) -> Generator[IntentCanvas, None, None]:
         """Retrieve all canvases from a given model."""
         # Create a mapping from canvas to rows to get unique canvas references.
-        canvas_to_row = defaultdict(list)
+        seen_canvases = set()
+
         for row in range(model.rowCount()):
             canvas = self.canvas_from_row(row, model)
-            canvas_to_row[canvas].append(row)
-        # Only return canvases if they have at least one associated row (sanity check).
-        return [canvas for canvas, rows in canvas_to_row.items() if len(rows)]
+            if canvas not in seen_canvases:
+                seen_canvases.add(canvas)
+                yield canvas
+
 
     def canvas_from_registry(self, canvas_class_name, registry, canvas_name):
         return registry.get_plugin_by_name(canvas_class_name, "IntentCanvasPlugin")(canvas_name=canvas_name)
