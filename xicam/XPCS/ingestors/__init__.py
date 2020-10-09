@@ -133,6 +133,7 @@ def ingest_nxXPCS(paths):
 
     yield 'descriptor', g2_stream_bundle.descriptor_doc
     yield 'descriptor', SAXS_2D_stream_bundle.descriptor_doc
+    yield 'descriptor', SAXS_1D_stream_bundle.descriptor_doc
 
     num_events = g2.shape[1]
     for i in range(num_events):
@@ -149,7 +150,7 @@ def ingest_nxXPCS(paths):
     yield 'event', SAXS_2D_stream_bundle.compose_event(data={'SAXS_2D': SAXS_2D_I},
                                                        timestamps={'SAXS_2D': t})
     t = time.time()
-    yield 'event', SAXS_1D_stream_bundle.compose_event(data={'SAXS_1D_I': SAXS_2D_I,
+    yield 'event', SAXS_1D_stream_bundle.compose_event(data={'SAXS_1D_I': SAXS_1D_I,
                                                              'SAXS_1D_Q': SAXS_1D_Q},
                                                        timestamps={'SAXS_1D_I': t,
                                                                    'SAXS_1D_Q': t})
