@@ -1,6 +1,7 @@
 from typing import List
 import numpy as np
 from databroker.core import BlueskyRun
+from xicam.SAXS.intents import SAXSImageIntent
 from xicam.core.intents import Intent, PlotIntent, ImageIntent
 from ..ingestors import g2_projection_key, g2_error_projection_key, g2_roi_names_key, tau_projection_key, SAXS_2D_I_projection_key
 from scipy.misc import face
@@ -55,6 +56,6 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                             labels={"left": "g2", "bottom": "tau"}))
 
     #l.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
-    l.append(ImageIntent(image=SAXS_2D_I, item_name='SAXS 2D'), )
+    l.append(SAXSImageIntent(image=SAXS_2D_I, item_name='SAXS 2D'), )
     return l
     # TODO: additionally return intents for masks, rois

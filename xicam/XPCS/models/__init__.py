@@ -310,6 +310,10 @@ class XicamCanvasManager(CanvasManager):
         if intent_canvas_type_string != match_canvas_type_string:
             return False
 
+        # By definition, if a match_key is not provided, the intent is un-matchable
+        if intent.match_key is None or match_intent.match_key is None:
+            return False
+
         if intent.match_key != match_intent.match_key:
             return False
 
