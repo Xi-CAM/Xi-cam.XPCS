@@ -1,6 +1,7 @@
 from typing import List
 import numpy as np
 from databroker.core import BlueskyRun
+from xicam.core.data.bluesky_utils import display_name
 from xicam.SAXS.intents import SAXSImageIntent
 from xicam.core.intents import Intent, PlotIntent, ImageIntent
 from ..ingestors import g2_projection_key, g2_error_projection_key, g2_roi_names_key, tau_projection_key, \
@@ -40,6 +41,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     SAXS_1D_I = getattr(run_catalog, SAXS_1D_I_stream).to_dask().rename({SAXS_1D_I_field: SAXS_1D_I_projection_key,
                                                                          SAXS_1D_Q_field: SAXS_1D_Q_projection_key})
     SAXS_1D_I = np.squeeze(SAXS_1D_I)
+    catalog_name = display_name(run_catalog).split(" ")[0]
 
     l = []
     for i in range(len(g2[g2_projection_key])):
@@ -54,10 +56,10 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                             labels={"left": "g2", "bottom": "tau"}))
 
     #l.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
-    l.append(SAXSImageIntent(image=SAXS_2D_I, item_name='SAXS 2D'), )
+    l.append(SAXSImageIntent(image=SAXS_2D_I, item_name="AVG frame {}".format(catalog_name)), )
     l.append(PlotIntent(y=SAXS_1D_I[SAXS_1D_I_projection_key],
                         x=SAXS_1D_I[SAXS_1D_Q_projection_key],
                         labels={"left": "I", "bottom": "Q"},
-                        item_name='SAXS 1D'))
+                        item_name='AVG SAXS curve {}'.format(catalog_name)))
     return l
     # TODO: additionally return intents for masks, rois
