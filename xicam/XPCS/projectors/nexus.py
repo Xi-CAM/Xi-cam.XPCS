@@ -17,10 +17,13 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         filter(lambda projection: projection['name'] == 'nxXPCS', run_catalog.metadata['start']['projections']))
 
     # TODO: project masks, rois
-    stream = projection['projection'][g2_projection_key]['stream']
+    g2_stream = projection['projection'][g2_projection_key]['stream']
     g2_field = projection['projection'][g2_projection_key]['field']
     g2_error_field = projection['projection'][g2_error_projection_key]['field']
     g2_roi_name_field = projection['projection'][g2_roi_names_key]['field']
+    g2 = getattr(run_catalog, g2_stream).to_dask().rename({g2_field: g2_projection_key,
+                                                        g2_error_field: g2_error_projection_key,
+                                                        g2_roi_name_field: g2_roi_names_key})
 
     SAXS_2D_I_stream = projection['projection'][SAXS_2D_I_projection_key]['stream']
     SAXS_2D_I_field = projection['projection'][SAXS_2D_I_projection_key]['field']
@@ -28,10 +31,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     # SAXS_2D_I = np.squeeze(SAXS_2D_I)
 
     # Use singly-sourced key name
-    g2 = getattr(run_catalog, stream).to_dask().rename({g2_field: g2_projection_key,
-                                                        g2_error_field: g2_error_projection_key,
-                                                        g2_roi_name_field: g2_roi_names_key,
-                                                        SAXS_2D_I_field: SAXS_2D_I_projection_key})
+
     # return [
     #     # PlotIntent(y=g2_curve, x=g2_curve['g2'], category=g2_projection_key.split("/")[-1])
     #     # for g2_curve in g2[g2_projection_key]
