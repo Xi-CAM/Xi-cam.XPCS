@@ -12,6 +12,7 @@ mimetypes.add_type('application/x-hdf5', '.nxs')
 g2_projection_key = 'entry/XPCS/data/g2'
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
 g2_roi_names_key = 'entry/data/masks/mask/mask_names'
+SAXS_2D_I_projection_key = 'entry/SAXS_2D/data/I'
 # TODO: add var for rest of projection keys
 
 projections = [{'name': 'nxXPCS',
@@ -32,7 +33,12 @@ projections = [{'name': 'nxXPCS',
                      g2_roi_names_key: {'type': 'linked',
                                          'stream': 'primary',
                                          'location': 'event',
-                                         'field': 'g2_roi_names'}, }
+                                         'field': 'g2_roi_names'},
+                     SAXS_2D_I_projection_key: {'type': 'linked',
+                                                'stream': 'SAXS_2D',
+                                                'location': 'event',
+                                                'field': 'SAXS_2D'},
+                     }
 
                 }]
 
@@ -48,6 +54,8 @@ def ingest_nxXPCS(paths):
     # masks = h5['entry/XPCS/data/masks']
     # rois = h5['entry/XPCS/data/rois']
     g2_roi_names = list(map(lambda bytestring: bytestring.decode('UTF-8'), h5[g2_roi_names_key][()]))
+    SAXS_2D_I = da.from_array(h5['entry/SAXS_2D/data/I'])
+
 
     # Compose run start
     run_bundle = event_model.compose_run()  # type: event_model.ComposeRunBundle
@@ -68,14 +76,31 @@ def ingest_nxXPCS(paths):
                                      'shape': (g2.shape[0],)},
                        'g2_roi_names': {'source': source,
                                         'dtype': 'string',
-                                        'shape': tuple()}}
+                                        'shape': tuple()},
+                       # 'SAXS_2D': {'source': source,
+                       #          'dtype': 'array',
+                       #          'dims': ('SAXS_2D_I',),
+                       #          'shape': SAXS_2D_I.shape}
+                       }
 
+    SAXS_keys = {'SAXS_2D': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('SAXS_2D_I',),
+                             'shape': SAXS_2D_I.shape}}
+
+    #TODO: How to add multiple streams?
     frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
-                                                        name='primary',
+                                                        name='primary'
+                                                        # configuration=_metadata(path)
+                                                        )
+    frame_stream_bundle = run_bundle.compose_descriptor(data_keys=SAXS_keys,
+                                                        name='SAXS_2D'
                                                         # configuration=_metadata(path)
                                                         )
     yield 'descriptor', frame_stream_bundle.descriptor_doc
 
+    yield 'event', frame_stream_bundle.compose_event(data={'SAXS_2D': SAXS_2D_I},
+                                                     timestamps={'SAXS_2D': time.time()})
     num_events = g2.shape[1]
 
     for i in range(num_events):
