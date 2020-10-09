@@ -95,7 +95,7 @@ def ingest_nxXPCS(paths):
 
     SAXS_keys = {'SAXS_2D': {'source': source,
                              'dtype': 'array',
-                             'dims': ('SAXS_2D_I',),
+                             'dims': ('q_x', 'q_y'),
                              'shape': SAXS_2D_I.shape}}
 
     #TODO: How to add multiple streams?
@@ -116,7 +116,7 @@ def ingest_nxXPCS(paths):
 
     for i in range(num_events):
         t = time.time()
-        yield 'event', frame_stream_bundle.compose_event(data={'g2_curves': g2[:, i],
+        yield 'event', g2_stream_bundle.compose_event(data={'g2_curves': g2[:, i],
                                                                'g2_tau': tau,
                                                                'g2_error_bars': g2_errors[:, i],
                                                                'g2_roi_names': g2_roi_names[i]},
