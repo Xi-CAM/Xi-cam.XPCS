@@ -37,6 +37,7 @@ class CanvasManager:
     # ImageIntentCanvas <- ImageWithRoiIntentCanvas
     # or (preferred) add logic in the ImageIntentCanvas render method
 
+
 class Ensemble:
     """Represents an organized collection of catalogs."""
     _count = count(1)
@@ -83,6 +84,7 @@ class EnsembleModel(TreeModel):
 
     def __init__(self, parent=None):
         super(EnsembleModel, self).__init__(parent)
+        self.rootItem.setData("Ensembles", Qt.DisplayRole)
 
     def setData(self, index: QModelIndex, value: Any, role: Qt.ItemDataRole = Qt.EditRole) -> bool:
         if not index.isValid():
@@ -233,7 +235,6 @@ class XicamCanvasManager(CanvasManager):
             if canvas not in seen_canvases:
                 seen_canvases.add(canvas)
                 yield canvas
-
 
     def canvas_from_registry(self, canvas_class_name, registry, canvas_name):
         return registry.get_plugin_by_name(canvas_class_name, "IntentCanvasPlugin")(canvas_name=canvas_name)
