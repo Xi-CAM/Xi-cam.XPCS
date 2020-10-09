@@ -89,23 +89,24 @@ def ingest_nxXPCS(paths):
                              'shape': SAXS_2D_I.shape}}
 
     #TODO: How to add multiple streams?
-    frame_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
+    g2_stream_bundle = run_bundle.compose_descriptor(data_keys=frame_data_keys,
                                                         name='primary'
                                                         # configuration=_metadata(path)
                                                         )
-    frame_stream_bundle = run_bundle.compose_descriptor(data_keys=SAXS_keys,
+    SAXS_stream_bundle = run_bundle.compose_descriptor(data_keys=SAXS_keys,
                                                         name='SAXS_2D'
                                                         # configuration=_metadata(path)
                                                         )
-    yield 'descriptor', frame_stream_bundle.descriptor_doc
+    yield 'descriptor', SAXS_stream_bundle.descriptor_doc
+    yield 'descriptor', g2_stream_bundle.descriptor_doc
 
-    yield 'event', frame_stream_bundle.compose_event(data={'SAXS_2D': SAXS_2D_I},
+    yield 'event', SAXS_stream_bundle.compose_event(data={'SAXS_2D': SAXS_2D_I},
                                                      timestamps={'SAXS_2D': time.time()})
     num_events = g2.shape[1]
 
     for i in range(num_events):
         t = time.time()
-        yield 'event', frame_stream_bundle.compose_event(data={'g2_curves': g2[:, i],
+        yield 'event', g2_stream_bundle.compose_event(data={'g2_curves': g2[:, i],
                                                                'g2_error_bars': g2_errors[:, i],
                                                                'g2_roi_names': g2_roi_names[i]},
                                                          timestamps={'g2_curves': t,
