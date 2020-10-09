@@ -39,17 +39,8 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     SAXS_1D_Q_field = projection['projection'][SAXS_1D_Q_projection_key]['field']
     SAXS_1D_I = getattr(run_catalog, SAXS_1D_I_stream).to_dask().rename({SAXS_1D_I_field: SAXS_1D_I_projection_key,
                                                                          SAXS_1D_Q_field: SAXS_1D_Q_projection_key})
+    SAXS_1D_I = np.squeeze(SAXS_1D_I)
 
-
-
-    # Use singly-sourced key name
-
-    # return [
-    #     # PlotIntent(y=g2_curve, x=g2_curve['g2'], category=g2_projection_key.split("/")[-1])
-    #     # for g2_curve in g2[g2_projection_key]
-    #     PlotIntent(y=g2_curve, x=g2_curve['g2'], labels={"left": "g2", "bottom": "tau"})
-    #     for g2_curve in g2[g2_projection_key]
-    # ]
     l = []
     for i in range(len(g2[g2_projection_key])):
         g2_curve = g2[g2_projection_key][i]
@@ -64,8 +55,9 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
 
     #l.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
     l.append(SAXSImageIntent(image=SAXS_2D_I, item_name='SAXS 2D'), )
-    # l.append(PlotIntent(y=SAXS_1D_I[SAXS_1D_I_projection_key],
-    #                     x=SAXS_1D_I[SAXS_1D_Q_projection_key],
-    #                     labels={"left": "I", "bottom": "Q"}))
+    l.append(PlotIntent(y=SAXS_1D_I[SAXS_1D_I_projection_key],
+                        x=SAXS_1D_I[SAXS_1D_Q_projection_key],
+                        labels={"left": "I", "bottom": "Q"},
+                        item_name='SAXS 1D'))
     return l
     # TODO: additionally return intents for masks, rois
