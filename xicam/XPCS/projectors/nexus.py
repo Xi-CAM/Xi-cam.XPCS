@@ -5,7 +5,8 @@ from xicam.core.data.bluesky_utils import display_name
 from xicam.SAXS.intents import SAXSImageIntent
 from xicam.core.intents import Intent, PlotIntent, ImageIntent
 from ..ingestors import g2_projection_key, g2_error_projection_key, g2_roi_names_key, tau_projection_key, \
-                        SAXS_2D_I_projection_key, SAXS_1D_I_projection_key, SAXS_1D_Q_projection_key
+                        SAXS_2D_I_projection_key, SAXS_1D_I_projection_key, SAXS_1D_Q_projection_key, \
+                        raw_data_projection_key
 from scipy.misc import face
 
 
@@ -18,8 +19,11 @@ from scipy.misc import face
 def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     projection = next(
         filter(lambda projection: projection['name'] == 'nxXPCS', run_catalog.metadata['start']['projections']))
+    catalog_name = display_name(run_catalog).split(" ")[0]
+    l = []
 
     # TODO: project masks, rois
+    #gather fields and streams from projections
     g2_stream = projection['projection'][g2_projection_key]['stream']
     g2_field = projection['projection'][g2_projection_key]['field']
     tau_field = projection['projection'][tau_projection_key]['field']
@@ -41,9 +45,16 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     SAXS_1D_I = getattr(run_catalog, SAXS_1D_I_stream).to_dask().rename({SAXS_1D_I_field: SAXS_1D_I_projection_key,
                                                                          SAXS_1D_Q_field: SAXS_1D_Q_projection_key})
     SAXS_1D_I = np.squeeze(SAXS_1D_I)
-    catalog_name = display_name(run_catalog).split(" ")[0]
+    try:
+        raw_data_stream = projection['projection'][raw_data_projection_key]['stream']
+        raw_data_field = projection['projection'][raw_data_projection_key]['field']
+        raw_data = getattr(run_catalog, raw_data_stream).to_dask().rename({raw_data_field: raw_data_projection_key})[raw_data_projection_key]
+        raw_data = np.squeeze(raw_data)
+        l.append(SAXSImageIntent(image=raw_data, item_name="Raw frame {}".format(catalog_name)), )
+    except:
+        print('No raw data available')
 
-    l = []
+
     for i in range(len(g2[g2_projection_key])):
         g2_curve = g2[g2_projection_key][i]
         tau = g2[tau_projection_key][i]

@@ -13,9 +13,12 @@ g2_projection_key = 'entry/XPCS/data/g2'
 tau_projection_key = 'entry/XPCS/data/t_el'  # FIXME: replace with tau once available in h5 file
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
 g2_roi_names_key = 'entry/data/masks/mask/mask_names'
+
 SAXS_2D_I_projection_key = 'entry/SAXS_2D/data/I'
 SAXS_1D_I_projection_key = 'entry/SAXS_1D/data/I'
 SAXS_1D_Q_projection_key = 'entry/SAXS_1D/data/Q'
+
+raw_data_projection_key = 'entry/data/raw'
 # TODO: add var for rest of projection keys
 
 projections = [{'name': 'nxXPCS',
@@ -41,6 +44,7 @@ projections = [{'name': 'nxXPCS',
                                          'stream': 'primary',
                                          'location': 'event',
                                          'field': 'g2_roi_names'},
+
                      SAXS_2D_I_projection_key: {'type': 'linked',
                                                 'stream': 'SAXS_2D',
                                                 'location': 'event',
@@ -54,6 +58,11 @@ projections = [{'name': 'nxXPCS',
                                                 'location': 'event',
                                                 'field': 'SAXS_1D_Q'},
 
+                     raw_data_projection_key: {'type': 'linked',
+                                                'stream': 'raw',
+                                                'location': 'event',
+                                                'field': 'raw'},
+
                      }
 
                 }]
@@ -65,6 +74,15 @@ def ingest_nxXPCS(paths):
 
     h5 = h5py.File(path, 'r')
 
+    # Compose run start
+    run_bundle = event_model.compose_run()  # type: event_model.ComposeRunBundle
+    start_doc = run_bundle.start_doc
+    start_doc["sample_name"] = Path(paths[0]).resolve().stem
+    start_doc["projections"] = projections
+    yield 'start', start_doc
+    source = 'nxXPCS'
+
+    #gather data from h5 file
     g2 = h5[g2_projection_key]
     tau = h5[tau_projection_key][()]
     g2_errors = h5[g2_error_projection_key]
@@ -75,16 +93,24 @@ def ingest_nxXPCS(paths):
     SAXS_1D_I = h5[SAXS_1D_I_projection_key]
     SAXS_1D_Q = h5[SAXS_1D_Q_projection_key]
 
+    try:
+        raw_data = h5[raw_data_projection_key]
+        raw_data_keys = {'raw': {'source': source,
+                                 'dtype': 'array',
+                                 'dims': ('N', 'q_x', 'q_y'),
+                                 'shape': raw_data.shape}}
+        raw_data_stream_bundle = run_bundle.compose_descriptor(data_keys=raw_data_keys,
+                                                               name='raw'
+                                                               # configuration=_metadata(path)
+                                                               )
+        yield 'descriptor', raw_data_stream_bundle.descriptor_doc
+        t = time.time()
+        yield 'event', raw_data_stream_bundle.compose_event(data={'raw': raw_data},
+                                                            timestamps={'raw': t})
+    except KeyError:
+        pass
 
-    # Compose run start
-    run_bundle = event_model.compose_run()  # type: event_model.ComposeRunBundle
-    start_doc = run_bundle.start_doc
-    start_doc["sample_name"] = Path(paths[0]).resolve().stem
-    start_doc["projections"] = projections
-    yield 'start', start_doc
 
-    # Compose descriptor
-    source = 'nxXPCS'
     g2_data_keys = {'g2_curves': {'source': source,
                               'dtype': 'array',
                               'dims': ('g2',),
@@ -100,7 +126,7 @@ def ingest_nxXPCS(paths):
                     'g2_roi_names': {'source': source,
                                      'dtype': 'string',
                                      'shape': tuple()},
-                       }
+                    }
 
     SAXS_2D_keys = {'SAXS_2D': {'source': source,
                              'dtype': 'array',
@@ -117,6 +143,7 @@ def ingest_nxXPCS(paths):
                                   'shape': SAXS_1D_Q.shape},
                     }
 
+
     #TODO: How to add multiple streams?
     g2_stream_bundle = run_bundle.compose_descriptor(data_keys=g2_data_keys,
                                                         name='primary'
@@ -131,9 +158,11 @@ def ingest_nxXPCS(paths):
                                                         # configuration=_metadata(path)
                                                         )
 
+
     yield 'descriptor', g2_stream_bundle.descriptor_doc
     yield 'descriptor', SAXS_2D_stream_bundle.descriptor_doc
     yield 'descriptor', SAXS_1D_stream_bundle.descriptor_doc
+
 
     num_events = g2.shape[1]
     for i in range(num_events):
@@ -154,6 +183,5 @@ def ingest_nxXPCS(paths):
                                                              'SAXS_1D_Q': SAXS_1D_Q},
                                                        timestamps={'SAXS_1D_I': t,
                                                                    'SAXS_1D_Q': t})
-
 
     yield 'stop', run_bundle.compose_stop()
