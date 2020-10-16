@@ -22,6 +22,7 @@ setup(
     version=__version__,
     description='XPCS GUI interface',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url='',
     license='BSD',
     classifiers=[
