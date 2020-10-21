@@ -125,7 +125,7 @@ def ingest_nxXPCS(paths):
                                       'shape': (g2.shape[0],)},
                     'g2_roi_names': {'source': source,
                                      'dtype': 'string',
-                                     'shape': []},
+                                     'shape': tuple()},
                     }
 
     SAXS_2D_keys = {'SAXS_2D': {'source': source,

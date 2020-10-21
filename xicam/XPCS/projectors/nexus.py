@@ -3,7 +3,7 @@ import numpy as np
 from databroker.core import BlueskyRun
 from xicam.core.data.bluesky_utils import display_name
 from xicam.SAXS.intents import SAXSImageIntent
-from xicam.core.intents import Intent, PlotIntent, ImageIntent
+from xicam.core.intents import Intent, PlotIntent, ImageIntent, ErrorBarIntent
 from ..ingestors import g2_projection_key, g2_error_projection_key, g2_roi_names_key, tau_projection_key, \
                         SAXS_2D_I_projection_key, SAXS_1D_I_projection_key, SAXS_1D_Q_projection_key, \
                         raw_data_projection_key
@@ -58,13 +58,24 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     for i in range(len(g2[g2_projection_key])):
         g2_curve = g2[g2_projection_key][i]
         tau = g2[tau_projection_key][i]
+        error_height = g2[g2_error_projection_key][i]
         # g2_roi_name = g2[g2_roi_names_key][i].values[0]
         g2_roi_name = g2[g2_roi_names_key].values[i]  # FIXME: talk to Dan about how to properly define string data keys
-        l.append(PlotIntent(item_name=str(g2_roi_name),  # need str cast here, otherwise is type numpy.str_ (which Qt won't like in its DisplayRole)
-                            y=g2_curve,
-                            x=tau,
-                            xLogMode=True,
-                            labels={"left": "g2", "bottom": "tau"}))
+        # l.append(PlotIntent(item_name=str(g2_roi_name),  # need str cast here, otherwise is type numpy.str_ (which Qt won't like in its DisplayRole)
+        #                     canvas_name='g₂ vs. τ',
+        #                     match_key='g₂ vs. τ',
+        #                     y=g2_curve,
+        #                     x=tau,
+        #                     xLogMode=True,
+        #                     labels={"left": "g₂", "bottom": "τ"}))
+        l.append(ErrorBarIntent(item_name=str(g2_roi_name),
+                                match_key='g₂ vs. τ',
+                                canvas_name='g₂ vs. τ',
+                                y=g2_curve,
+                                x=tau,
+                                xLogMode=True,
+                                height=error_height,
+                                labels={"left": "g₂", "bottom": "τ"}))
 
     #l.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
     l.append(SAXSImageIntent(image=SAXS_2D_I, item_name="AVG frame {}".format(catalog_name)), )
