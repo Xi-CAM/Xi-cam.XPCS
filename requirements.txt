@@ -8,7 +8,5 @@ scipy
 scikit-image
 xicam.SAXS
 event-model
-
-# Wait until ronpandolfi's changes (#542) are in release /PyPi ...
-scikit-beam @ git+https://github.com/scikit-beam/scikit-beam
+scikit-beam
 

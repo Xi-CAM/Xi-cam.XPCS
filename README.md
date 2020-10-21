@@ -1,33 +1,17 @@
-XPCS
-===============================
+# Xi-CAM XPCS
 
-version number: 
-author: Ron Pandolfi
-
-Overview
---------
-
-XPCS GUI interface
-
-Installation / Usage
---------------------
-
-To install use pip:
-
-    $ pip install XPCS
+Xi-CAM GUI plugin that facilitates data exploration and visualization for XPCS experiments.
 
 
-Or clone the repo:
+## Installation
 
-    $ git clone 
-    $ python setup.py install
-    
-Contributing
-------------
+If not already installed, install the main Xi-CAM package: [Xi-CAM](https://github.com/xi-cam/xi-cam)
 
-TBD
+The latest build of Xi-cam.XPCS is available on pypi
+```
+pip install xicam.XPCS
+```
 
-Example
--------
+## Resources
 
-TBD
+For more information about Xi-CAM, see the [main Xi-CAM repository](https://github.com/xi-cam/xi-cam)
