@@ -11,7 +11,7 @@ print("MIMETYPE ADDED")
 mimetypes.add_type('application/x-hdf5', '.nxs')
 
 g2_projection_key = 'entry/XPCS/data/g2'
-tau_projection_key = 'entry/XPCS/data/t_el'  # FIXME: replace with tau once available in h5 file
+tau_projection_key = 'entry/XPCS/data/tau'  # FIXME: replace with tau once available in h5 file
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
 g2_roi_names_key = 'entry/data/masks/mask/mask_names'
 
