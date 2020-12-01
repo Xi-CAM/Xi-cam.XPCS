@@ -18,6 +18,7 @@ g2_roi_names_key = 'entry/data/masks/mask/mask_names'
 SAXS_2D_I_projection_key = 'entry/SAXS_2D/data/I'
 SAXS_1D_I_projection_key = 'entry/SAXS_1D/data/I'
 SAXS_1D_Q_projection_key = 'entry/SAXS_1D/data/Q'
+SAXS_1D_I_partial_projection_key = 'entry/SAXS_1D/data/I_partial'
 
 raw_data_projection_key = 'entry/data/raw'
 # TODO: add var for rest of projection keys
@@ -58,7 +59,10 @@ projections = [{'name': 'nxXPCS',
                                                 'stream': 'SAXS_1D',
                                                 'location': 'event',
                                                 'field': 'SAXS_1D_Q'},
-
+                     SAXS_1D_I_partial_projection_key: {'type': 'linked',
+                                                'stream': 'SAXS_1D',
+                                                'location': 'event',
+                                                'field': 'SAXS_1D_partial'},
                      raw_data_projection_key: {'type': 'linked',
                                                 'stream': 'raw',
                                                 'location': 'event',
