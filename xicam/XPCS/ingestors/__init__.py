@@ -97,6 +97,7 @@ def ingest_nxXPCS(paths):
     SAXS_2D_I = da.from_array(h5['entry/SAXS_2D/data/I'])
     SAXS_1D_I = h5[SAXS_1D_I_projection_key]
     SAXS_1D_Q = h5[SAXS_1D_Q_projection_key]
+    SAXS_1D_I_partial = h5[SAXS_1D_I_partial_projection_key]
 
     try:
         raw_data = h5[raw_data_projection_key]
@@ -148,6 +149,12 @@ def ingest_nxXPCS(paths):
                                   'shape': SAXS_1D_Q.shape},
                     }
 
+    SAXS_1D_I_partial_keys = {'SAXS_1D_I_partial': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('N', 'I'),
+                             'shape': SAXS_1D_I_partial.shape},
+                    }
+
 
     #TODO: How to add multiple streams?
     g2_stream_bundle = run_bundle.compose_descriptor(data_keys=g2_data_keys,
@@ -162,11 +169,16 @@ def ingest_nxXPCS(paths):
                                                         name='SAXS_1D'
                                                         # configuration=_metadata(path)
                                                         )
+    SAXS_1D_I_partial_stream_bundle = run_bundle.compose_descriptor(data_keys=SAXS_1D_I_partial_keys,
+                                                        name='SAXS_1D_I_partial'
+                                                        # configuration=_metadata(path)
+                                                        )
 
 
     yield 'descriptor', g2_stream_bundle.descriptor_doc
     yield 'descriptor', SAXS_2D_stream_bundle.descriptor_doc
     yield 'descriptor', SAXS_1D_stream_bundle.descriptor_doc
+    yield 'descriptor', SAXS_1D_I_partial_stream_bundle.descriptor_doc
 
 
     num_events = g2.shape[1]
@@ -188,5 +200,8 @@ def ingest_nxXPCS(paths):
                                                              'SAXS_1D_Q': SAXS_1D_Q},
                                                        timestamps={'SAXS_1D_I': t,
                                                                    'SAXS_1D_Q': t})
+    t = time.time()
+    yield 'event', SAXS_1D_I_partial_stream_bundle.compose_event(data={'SAXS_1D_I_partial': SAXS_1D_I_partial},
+                                                       timestamps={'SAXS_1D_I_partial': t})
 
     yield 'stop', run_bundle.compose_stop()
