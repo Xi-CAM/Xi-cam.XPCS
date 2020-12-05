@@ -14,6 +14,7 @@ g2_projection_key = 'entry/XPCS/data/g2'
 tau_projection_key = 'entry/XPCS/data/tau'  # FIXME: replace with tau once available in h5 file
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
 g2_roi_names_key = 'entry/data/masks/mask/mask_names'
+XPCS_mask_names_key = 'entry/XPCS/data/masks'
 
 SAXS_2D_I_projection_key = 'entry/SAXS_2D/data/I'
 SAXS_1D_I_projection_key = 'entry/SAXS_1D/data/I'
@@ -38,7 +39,7 @@ projections = [{'name': 'nxXPCS',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'g2_error_bars'},
-                     'entry/XPCS/data/masks': {'type': 'linked',
+                     XPCS_mask_names_key: {'type': 'linked',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'masks'},
