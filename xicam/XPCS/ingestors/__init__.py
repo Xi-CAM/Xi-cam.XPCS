@@ -9,6 +9,7 @@ import mimetypes
 
 print("MIMETYPE ADDED")
 mimetypes.add_type('application/x-hdf5', '.nxs')
+mimetypes.add_type('application/x-hdf5', '.nx')
 
 g2_projection_key = 'entry/XPCS/data/g2'
 tau_projection_key = 'entry/XPCS/data/tau'  # FIXME: replace with tau once available in h5 file
