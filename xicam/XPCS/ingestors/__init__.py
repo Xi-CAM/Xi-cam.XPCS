@@ -62,9 +62,9 @@ projections = [{'name': 'nxXPCS',
                                                 'location': 'event',
                                                 'field': 'SAXS_1D_Q'},
                      SAXS_1D_I_partial_projection_key: {'type': 'linked',
-                                                'stream': 'SAXS_1D',
+                                                'stream': 'SAXS_1D_I_partial',
                                                 'location': 'event',
-                                                'field': 'SAXS_1D_partial'},
+                                                'field': 'SAXS_1D_I_partial'},
                      raw_data_projection_key: {'type': 'linked',
                                                 'stream': 'raw',
                                                 'location': 'event',
@@ -96,10 +96,10 @@ def ingest_nxXPCS(paths):
     # masks = h5['entry/XPCS/data/masks']
     # rois = h5['entry/XPCS/data/rois']
     g2_roi_names = list(map(lambda bytestring: bytestring.decode('UTF-8'), h5[g2_roi_names_key][()]))
-    SAXS_2D_I = da.from_array(h5['entry/SAXS_2D/data/I'])
+    SAXS_2D_I = da.from_array(h5[SAXS_2D_I_projection_key])
     SAXS_1D_I = h5[SAXS_1D_I_projection_key]
     SAXS_1D_Q = h5[SAXS_1D_Q_projection_key]
-    SAXS_1D_I_partial = h5[SAXS_1D_I_partial_projection_key]
+    SAXS_1D_I_partial = da.from_array(h5[SAXS_1D_I_partial_projection_key])
 
     try:
         raw_data = h5[raw_data_projection_key]
@@ -202,8 +202,10 @@ def ingest_nxXPCS(paths):
                                                              'SAXS_1D_Q': SAXS_1D_Q},
                                                        timestamps={'SAXS_1D_I': t,
                                                                    'SAXS_1D_Q': t})
+    # num_curves = SAXS_1D_I_partial.shape[1]
+    # for i in range(num_curves):
     t = time.time()
     yield 'event', SAXS_1D_I_partial_stream_bundle.compose_event(data={'SAXS_1D_I_partial': SAXS_1D_I_partial},
-                                                       timestamps={'SAXS_1D_I_partial': t})
+                                                                 timestamps={'SAXS_1D_I_partial': t})
 
     yield 'stop', run_bundle.compose_stop()

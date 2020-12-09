@@ -37,7 +37,8 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
 
     SAXS_2D_I_stream = projection['projection'][SAXS_2D_I_projection_key]['stream']
     SAXS_2D_I_field = projection['projection'][SAXS_2D_I_projection_key]['field']
-    SAXS_2D_I = getattr(run_catalog, SAXS_2D_I_stream).to_dask().rename({SAXS_2D_I_field: SAXS_2D_I_projection_key})[SAXS_2D_I_projection_key]
+    SAXS_2D_I = getattr(run_catalog, SAXS_2D_I_stream).to_dask().\
+                        rename({SAXS_2D_I_field: SAXS_2D_I_projection_key})[SAXS_2D_I_projection_key]
 
     SAXS_1D_I_stream = projection['projection'][SAXS_1D_I_projection_key]['stream']
     SAXS_1D_I_field = projection['projection'][SAXS_1D_I_projection_key]['field']
@@ -45,10 +46,13 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     SAXS_1D_I = getattr(run_catalog, SAXS_1D_I_stream).to_dask().rename({SAXS_1D_I_field: SAXS_1D_I_projection_key,
                                                                          SAXS_1D_Q_field: SAXS_1D_Q_projection_key})
     SAXS_1D_I = np.squeeze(SAXS_1D_I)
+
     SAXS_1D_I_partial_stream = projection['projection'][SAXS_1D_I_partial_projection_key]['stream']
     SAXS_1D_I_partial_field = projection['projection'][SAXS_1D_I_partial_projection_key]['field']
-    SAXS_1D_I_partial = getattr(run_catalog, SAXS_1D_I_stream).to_dask().rename({SAXS_1D_I_partial_field: SAXS_1D_I_partial_projection_key,
-                                                                                 SAXS_1D_Q_field: [SAXS_1D_Q_projection_key for n in range(len(SAXS_1D_I_partial_projection_key))]})
+    SAXS_1D_I_partial = getattr(run_catalog, SAXS_1D_I_partial_stream).to_dask().\
+                                rename({SAXS_1D_I_partial_field: SAXS_1D_I_partial_projection_key})[SAXS_1D_I_partial_projection_key]
+    SAXS_1D_I_partial = np.squeeze(SAXS_1D_I_partial)
+
     try:
         raw_data_stream = projection['projection'][raw_data_projection_key]['stream']
         raw_data_field = projection['projection'][raw_data_projection_key]['field']
@@ -87,9 +91,11 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                         x=SAXS_1D_I[SAXS_1D_Q_projection_key],
                         labels={"left": "I", "bottom": "Q"},
                         item_name='AVG SAXS curve {}'.format(catalog_name)))
-    l.append(PlotIntent(y=SAXS_1D_I_partial[SAXS_1D_I_partial_projection_key],
-                        x = SAXS_1D_I[SAXS_1D_Q_projection_key],
-                        labels = {"left": "I", "bottom": "Q"},
-                        item_name = 'Stability Plot {}'.format(catalog_name)))
+
+    for i in range(len(SAXS_1D_I_partial)):
+        SAXS_curve = SAXS_1D_I_partial[i]
+        l.append(PlotIntent(y=SAXS_curve, x=SAXS_1D_I[SAXS_1D_Q_projection_key],
+                            labels = {"left": "I", "bottom": "Q"},
+                            item_name = 'Stability Plot {}'.format(catalog_name)))
     return l
     # TODO: additionally return intents for masks, rois
