@@ -92,10 +92,9 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                         labels={"left": "I", "bottom": "Q"},
                         item_name='AVG SAXS curve {}'.format(catalog_name)))
 
-    for i in range(len(SAXS_1D_I_partial)):
-        SAXS_curve = SAXS_1D_I_partial[i]
-        l.append(PlotIntent(y=SAXS_curve, x=SAXS_1D_I[SAXS_1D_Q_projection_key],
-                            labels = {"left": "I", "bottom": "Q"},
-                            item_name = 'Stability Plot {}'.format(catalog_name)))
+
+    l.append(PlotIntent(y=SAXS_1D_I_partial, x=SAXS_1D_I[SAXS_1D_Q_projection_key],
+                        labels = {"left": "I", "bottom": "Q"},
+                        item_name = 'Stability Plot {}'.format(catalog_name)))
     return l
     # TODO: additionally return intents for masks, rois
