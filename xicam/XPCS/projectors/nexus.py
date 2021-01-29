@@ -58,7 +58,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         raw_data_field = projection['projection'][raw_data_projection_key]['field']
         raw_data = getattr(run_catalog, raw_data_stream).to_dask().rename({raw_data_field: raw_data_projection_key})[raw_data_projection_key]
         raw_data = np.squeeze(raw_data)
-        l.append(SAXSImageIntent(image=raw_data, item_name="Raw frame {}".format(catalog_name)), )
+        l.append(SAXSImageIntent(image=raw_data, item_name="Raw frame {}".format(catalog_name), mixins=("SAXSImageIntentBlend",)), )
     except:
         print('No raw data available')
 
@@ -86,7 +86,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                                 labels={"left": "g₂", "bottom": "τ"}))
 
     #l.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
-    l.append(SAXSImageIntent(image=SAXS_2D_I, item_name="AVG frame {}".format(catalog_name)), )
+    l.append(SAXSImageIntent(image=SAXS_2D_I, item_name="AVG frame {}".format(catalog_name), mixins=("SAXSImageIntentBlend",)), )
     l.append(PlotIntent(y=SAXS_1D_I[SAXS_1D_I_projection_key],
                         x=SAXS_1D_I[SAXS_1D_Q_projection_key],
                         labels={"left": "I", "bottom": "Q"},
