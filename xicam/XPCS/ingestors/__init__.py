@@ -11,8 +11,9 @@ print("MIMETYPE ADDED")
 mimetypes.add_type('application/x-hdf5', '.nxs')
 mimetypes.add_type('application/x-hdf5', '.nx')
 
+#TODO separate the keys in external projections/config file and parse that here
 g2_projection_key = 'entry/XPCS/data/g2'
-tau_projection_key = 'entry/XPCS/data/tau'  # FIXME: replace with tau once available in h5 file
+tau_projection_key = 'entry/XPCS/data/tau'
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
 g2_roi_names_key = 'entry/data/masks/mask/mask_names'
 XPCS_mask_names_key = 'entry/XPCS/data/masks'
