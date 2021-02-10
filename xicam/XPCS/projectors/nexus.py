@@ -3,22 +3,20 @@ import numpy as np
 from databroker.core import BlueskyRun
 from xicam.core.data.bluesky_utils import display_name
 from xicam.SAXS.intents import SAXSImageIntent
+from xicam.core.data import ProjectionNotFound
 from xicam.core.intents import Intent, PlotIntent, ImageIntent, ErrorBarIntent
 from ..ingestors import g2_projection_key, g2_error_projection_key, g2_roi_names_key, tau_projection_key, \
                         SAXS_2D_I_projection_key, SAXS_1D_I_projection_key, SAXS_1D_Q_projection_key, \
                         SAXS_1D_I_partial_projection_key, raw_data_projection_key
-from scipy.misc import face
 
-
-# TODO: Hint -> Intent
-
-# hint -> xicam.intent
-# projection -> xicam.intent
-# def discover_intents(BlueskyRun) -> List[Intent] # inspects intents and projections to create intents
 
 def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     projection = next(
-        filter(lambda projection: projection['name'] == 'nxXPCS', run_catalog.metadata['start']['projections']))
+        filter(lambda projection: projection['name'] == 'nxXPCS', run_catalog.metadata['start']['projections']), None)
+
+    if not projection:
+        raise ProjectionNotFound("Could not find projection 'nxXPCS'.")
+
     catalog_name = display_name(run_catalog).split(" ")[0]
     l = []
 
