@@ -1,4 +1,5 @@
 import time
+import numpy as np
 import h5py
 import event_model
 from pathlib import Path
@@ -6,17 +7,19 @@ import dask.array as da
 from xarray import DataArray
 import mimetypes
 
-print("MIMETYPE ADDED")
 mimetypes.add_type('application/x-hdf5', '.nxs')
+mimetypes.add_type('application/x-hdf5', '.nx')
 
 g2_projection_key = 'entry/XPCS/data/g2'
-tau_projection_key = 'entry/XPCS/data/t_el'  # FIXME: replace with tau once available in h5 file
+tau_projection_key = 'entry/XPCS/data/tau'  # FIXME: replace with tau once available in h5 file
 g2_error_projection_key = 'entry/XPCS/data/g2_errors'
 g2_roi_names_key = 'entry/data/masks/mask/mask_names'
+XPCS_mask_names_key = 'entry/XPCS/data/masks'
 
 SAXS_2D_I_projection_key = 'entry/SAXS_2D/data/I'
 SAXS_1D_I_projection_key = 'entry/SAXS_1D/data/I'
 SAXS_1D_Q_projection_key = 'entry/SAXS_1D/data/Q'
+SAXS_1D_I_partial_projection_key = 'entry/SAXS_1D/data/I_partial'
 
 raw_data_projection_key = 'entry/data/raw'
 # TODO: add var for rest of projection keys
@@ -36,7 +39,7 @@ projections = [{'name': 'nxXPCS',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'g2_error_bars'},
-                     'entry/XPCS/data/masks': {'type': 'linked',
+                     XPCS_mask_names_key: {'type': 'linked',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'masks'},
@@ -57,7 +60,10 @@ projections = [{'name': 'nxXPCS',
                                                 'stream': 'SAXS_1D',
                                                 'location': 'event',
                                                 'field': 'SAXS_1D_Q'},
-
+                     SAXS_1D_I_partial_projection_key: {'type': 'linked',
+                                                'stream': 'SAXS_1D_I_partial',
+                                                'location': 'event',
+                                                'field': 'SAXS_1D_I_partial'},
                      raw_data_projection_key: {'type': 'linked',
                                                 'stream': 'raw',
                                                 'location': 'event',
@@ -89,9 +95,10 @@ def ingest_nxXPCS(paths):
     # masks = h5['entry/XPCS/data/masks']
     # rois = h5['entry/XPCS/data/rois']
     g2_roi_names = list(map(lambda bytestring: bytestring.decode('UTF-8'), h5[g2_roi_names_key][()]))
-    SAXS_2D_I = da.from_array(h5['entry/SAXS_2D/data/I'])
+    SAXS_2D_I = da.from_array(h5[SAXS_2D_I_projection_key])
     SAXS_1D_I = h5[SAXS_1D_I_projection_key]
     SAXS_1D_Q = h5[SAXS_1D_Q_projection_key]
+    SAXS_1D_I_partial = da.from_array(h5[SAXS_1D_I_partial_projection_key])
 
     try:
         raw_data = h5[raw_data_projection_key]
@@ -143,6 +150,12 @@ def ingest_nxXPCS(paths):
                                   'shape': SAXS_1D_Q.shape},
                     }
 
+    SAXS_1D_I_partial_keys = {'SAXS_1D_I_partial': {'source': source,
+                             'dtype': 'array',
+                             'dims': ('N', 'I'),
+                             'shape': SAXS_1D_I_partial.shape},
+                    }
+
 
     #TODO: How to add multiple streams?
     g2_stream_bundle = run_bundle.compose_descriptor(data_keys=g2_data_keys,
@@ -157,11 +170,16 @@ def ingest_nxXPCS(paths):
                                                         name='SAXS_1D'
                                                         # configuration=_metadata(path)
                                                         )
+    SAXS_1D_I_partial_stream_bundle = run_bundle.compose_descriptor(data_keys=SAXS_1D_I_partial_keys,
+                                                        name='SAXS_1D_I_partial'
+                                                        # configuration=_metadata(path)
+                                                        )
 
 
     yield 'descriptor', g2_stream_bundle.descriptor_doc
     yield 'descriptor', SAXS_2D_stream_bundle.descriptor_doc
     yield 'descriptor', SAXS_1D_stream_bundle.descriptor_doc
+    yield 'descriptor', SAXS_1D_I_partial_stream_bundle.descriptor_doc
 
 
     num_events = g2.shape[1]
@@ -183,5 +201,10 @@ def ingest_nxXPCS(paths):
                                                              'SAXS_1D_Q': SAXS_1D_Q},
                                                        timestamps={'SAXS_1D_I': t,
                                                                    'SAXS_1D_Q': t})
+    # num_curves = SAXS_1D_I_partial.shape[1]
+    # for i in range(num_curves):
+    t = time.time()
+    yield 'event', SAXS_1D_I_partial_stream_bundle.compose_event(data={'SAXS_1D_I_partial': SAXS_1D_I_partial},
+                                                                 timestamps={'SAXS_1D_I_partial': t})
 
     yield 'stop', run_bundle.compose_stop()
