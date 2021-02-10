@@ -7,7 +7,6 @@ import dask.array as da
 from xarray import DataArray
 import mimetypes
 
-print("MIMETYPE ADDED")
 mimetypes.add_type('application/x-hdf5', '.nxs')
 mimetypes.add_type('application/x-hdf5', '.nx')
 
