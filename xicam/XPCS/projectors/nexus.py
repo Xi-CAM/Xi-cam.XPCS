@@ -15,7 +15,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         filter(lambda projection: projection['name'] == 'nxXPCS', run_catalog.metadata['start']['projections']), None)
 
     if not projection:
-        raise ProjectionNotFound("Could not find projection 'nxXPCS'.")
+        raise ProjectionNotFound("Could not find projection named 'nxXPCS'.")
 
     catalog_name = display_name(run_catalog).split(" ")[0]
     l = []

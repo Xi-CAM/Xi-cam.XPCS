@@ -1,15 +1,13 @@
-from xicam.gui.plugins.ensembleguiplugin import EnsembleGUIPlugin
-from xicam.plugins import GUILayout, GUIPlugin, manager as pluginmanager
+from xicam.SAXS.stages import CorrelationStage
+from xicam.XPCS.projectors.nexus import project_nxXPCS
+
 from . import ingestors
 
 
-class XPCS(EnsembleGUIPlugin):
+class XPCS(CorrelationStage):
     name = 'XPCS'
 
     def __init__(self):
         super(XPCS, self).__init__()
-        saxsplugin = pluginmanager.get_plugin_by_name('SAXS', 'GUIPlugin')
-
-        self.stages = saxsplugin.stages
-
-        self.appendCatalog = saxsplugin.appendCatalog
+        # Add in appropriate projectors here
+        self._projectors.extend([project_nxXPCS])
