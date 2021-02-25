@@ -56,7 +56,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         raw_data_field = projection['projection'][raw_data_projection_key]['field']
         raw_data = getattr(run_catalog, raw_data_stream).to_dask().rename({raw_data_field: raw_data_projection_key})[raw_data_projection_key]
         raw_data = np.squeeze(raw_data)
-        l.append(SAXSImageIntent(image=raw_data, item_name="Raw frame {}".format(catalog_name), mixins=("SAXSImageIntentBlend",)), )
+        l.append(SAXSImageIntent(image=raw_data, name="Raw frame {}".format(catalog_name), mixins=("SAXSImageIntentBlend",)), )
     except:
         print('No raw data available')
 
@@ -74,7 +74,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         #                     x=tau,
         #                     xLogMode=True,
         #                     labels={"left": "g₂", "bottom": "τ"}))
-        l.append(ErrorBarIntent(item_name=str(g2_roi_name),
+        l.append(ErrorBarIntent(intent_name=str(g2_roi_name),
                                 match_key='g₂ vs. τ',
                                 canvas_name='g₂ vs. τ',
                                 y=g2_curve,
@@ -84,15 +84,15 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                                 labels={"left": "g₂", "bottom": "τ"}))
 
     #l.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
-    l.append(SAXSImageIntent(image=SAXS_2D_I, item_name="AVG frame {}".format(catalog_name), mixins=("SAXSImageIntentBlend",)), )
+    l.append(SAXSImageIntent(image=SAXS_2D_I, name="AVG frame {}".format(catalog_name), mixins=("SAXSImageIntentBlend",)), )
     l.append(PlotIntent(y=SAXS_1D_I[SAXS_1D_I_projection_key],
                         x=SAXS_1D_I[SAXS_1D_Q_projection_key],
                         labels={"left": "I", "bottom": "Q"},
-                        item_name='AVG SAXS curve {}'.format(catalog_name)))
+                        name='AVG SAXS curve {}'.format(catalog_name)))
 
 
     l.append(PlotIntent(y=SAXS_1D_I_partial, x=SAXS_1D_I[SAXS_1D_Q_projection_key],
                         labels = {"left": "I", "bottom": "Q"},
-                        item_name = 'Stability Plot {}'.format(catalog_name)))
+                        name='Stability Plot {}'.format(catalog_name)))
     return l
     # TODO: additionally return intents for masks, rois
