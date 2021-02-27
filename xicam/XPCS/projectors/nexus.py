@@ -74,7 +74,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         #                     x=tau,
         #                     xLogMode=True,
         #                     labels={"left": "g₂", "bottom": "τ"}))
-        l.append(ErrorBarIntent(intent_name=str(g2_roi_name),
+        l.append(ErrorBarIntent(name=str(g2_roi_name),
                                 match_key='g₂ vs. τ',
                                 canvas_name='g₂ vs. τ',
                                 y=g2_curve,
