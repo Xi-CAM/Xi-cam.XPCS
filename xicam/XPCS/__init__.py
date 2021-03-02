@@ -10,4 +10,5 @@ class XPCS(CorrelationStage):
     def __init__(self):
         super(XPCS, self).__init__()
         # Add in appropriate projectors here
-        self._projectors.extend([project_nxXPCS])
+        # Add in first position so that it has priority
+        self._projectors.insert(0, project_nxXPCS)
