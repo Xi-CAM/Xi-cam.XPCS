@@ -12,7 +12,7 @@ from ..ingestors import g2_projection_key, g2_error_projection_key, g2_roi_names
 
 def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     projection = next(
-        filter(lambda projection: projection['name'] == 'nxXPCS', run_catalog.metadata['start']['projections']), None)
+        filter(lambda projection: projection['name'] == 'nxXPCS', run_catalog.metadata['start'].get('projections', [])), None)
 
     if not projection:
         raise ProjectionNotFound("Could not find projection named 'nxXPCS'.")
