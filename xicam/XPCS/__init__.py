@@ -1,16 +1,14 @@
-from xicam.plugins import GUILayout, GUIPlugin, manager as pluginmanager
+from xicam.SAXS.stages import CorrelationStage
+from xicam.XPCS.projectors.nexus import project_nxXPCS
+
 from . import ingestors
 
 
-class XPCS(GUIPlugin):
+class XPCS(CorrelationStage):
     name = 'XPCS'
 
     def __init__(self):
-        saxsplugin = pluginmanager.get_plugin_by_name('SAXS', 'GUIPlugin')
-
-        self.stages = saxsplugin.stages['Correlate']
-
-        self.appendCatalog = saxsplugin.appendCatalog
-        self.appendHeader = saxsplugin.appendHeader
-
         super(XPCS, self).__init__()
+        # Add in appropriate projectors here
+        # Add in first position so that it has priority
+        self._projectors.insert(0, project_nxXPCS)

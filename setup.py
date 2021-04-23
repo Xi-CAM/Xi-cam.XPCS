@@ -2,7 +2,7 @@ from setuptools import setup, find_namespace_packages
 from codecs import open
 from os import path
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 here = path.abspath(path.dirname(__file__))
 
@@ -22,6 +22,7 @@ setup(
     version=__version__,
     description='XPCS GUI interface',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url='',
     license='BSD',
     classifiers=[
