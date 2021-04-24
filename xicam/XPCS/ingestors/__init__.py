@@ -10,18 +10,18 @@ import mimetypes
 mimetypes.add_type('application/x-hdf5', '.nxs')
 mimetypes.add_type('application/x-hdf5', '.nx')
 
-g2_projection_key = 'entry/XPCS/data/g2'
-tau_projection_key = 'entry/XPCS/data/tau'  # FIXME: replace with tau once available in h5 file
-g2_error_projection_key = 'entry/XPCS/data/g2_errors'
-g2_roi_names_key = 'entry/data/masks/mask/mask_names'
-XPCS_mask_names_key = 'entry/XPCS/data/masks'
+g2_projection_key = '/entry/XPCS/data/g2'
+tau_projection_key = '/entry/XPCS/data/tau'
+g2_error_projection_key = '/entry/XPCS/data/g2_stderr'
+# g2_roi_names_key = '/entry/XPCS/instrument/mask/dqmap'
+# XPCS_mask_names_key = '/entry/XPCS/data/masks'
 
-SAXS_2D_I_projection_key = 'entry/SAXS_2D/data/I'
-SAXS_1D_I_projection_key = 'entry/SAXS_1D/data/I'
-SAXS_1D_Q_projection_key = 'entry/SAXS_1D/data/Q'
-SAXS_1D_I_partial_projection_key = 'entry/SAXS_1D/data/I_partial'
+SAXS_2D_I_projection_key = '/entry/SAXS_2D/data/I'
+SAXS_1D_I_projection_key = '/entry/SAXS_1D/data/I'
+SAXS_1D_Q_projection_key = '/entry/SAXS_1D/data/Q'
+SAXS_1D_I_partial_projection_key = '/entry/SAXS_1D/data/I_partial'
 
-raw_data_projection_key = 'entry/data/raw'
+raw_data_projection_key = '/entry/data/raw'
 # TODO: add var for rest of projection keys
 
 projections = [{'name': 'nxXPCS',
@@ -39,14 +39,15 @@ projections = [{'name': 'nxXPCS',
                                                'stream': 'primary',
                                                'location': 'event',
                                                'field': 'g2_error_bars'},
-                     XPCS_mask_names_key: {'type': 'linked',
-                                               'stream': 'primary',
-                                               'location': 'event',
-                                               'field': 'masks'},
-                     g2_roi_names_key: {'type': 'linked',
-                                         'stream': 'primary',
-                                         'location': 'event',
-                                         'field': 'g2_roi_names'},
+                     # XPCS_mask_names_key: {'type': 'linked',
+                     #                           'stream': 'primary',
+                     #                           'location': 'event',
+                     #                           'field': 'masks'},
+                     # g2_roi_names_key: {'type': 'linked',
+                     #                     'stream': 'primary',
+                     #                     'location': 'event',
+                     #                     # 'field': 'g2_roi_names'
+                     #                    },
 
                      SAXS_2D_I_projection_key: {'type': 'linked',
                                                 'stream': 'SAXS_2D',
@@ -90,14 +91,14 @@ def ingest_nxXPCS(paths):
 
     #gather data from h5 file
     g2 = h5[g2_projection_key]
-    tau = h5[tau_projection_key][()]
+    tau = h5[tau_projection_key][0]
     g2_errors = h5[g2_error_projection_key]
     # masks = h5['entry/XPCS/data/masks']
     # rois = h5['entry/XPCS/data/rois']
-    g2_roi_names = list(map(lambda bytestring: bytestring.decode('UTF-8'), h5[g2_roi_names_key][()]))
+    # g2_roi_names = list(map(lambda bytestring: bytestring.decode('UTF-8'), h5[g2_roi_names_key][()]))
     SAXS_2D_I = da.from_array(h5[SAXS_2D_I_projection_key])
-    SAXS_1D_I = h5[SAXS_1D_I_projection_key]
-    SAXS_1D_Q = h5[SAXS_1D_Q_projection_key]
+    SAXS_1D_I = h5[SAXS_1D_I_projection_key][0]
+    SAXS_1D_Q = h5[SAXS_1D_Q_projection_key][0]
     SAXS_1D_I_partial = da.from_array(h5[SAXS_1D_I_partial_projection_key])
 
     try:
@@ -130,9 +131,9 @@ def ingest_nxXPCS(paths):
                                       'dtype': 'array',
                                       'dims': ('g2_errors',),
                                       'shape': (g2.shape[0],)},
-                    'g2_roi_names': {'source': source,
-                                     'dtype': 'string',
-                                     'shape': tuple()},
+                    # 'g2_roi_names': {'source': source,
+                    #                  'dtype': 'string',
+                    #                  'shape': tuple()},
                     }
 
     SAXS_2D_keys = {'SAXS_2D': {'source': source,
@@ -188,11 +189,13 @@ def ingest_nxXPCS(paths):
         yield 'event', g2_stream_bundle.compose_event(data={'g2_curves': g2[:, i],
                                                              'g2_tau': tau,
                                                              'g2_error_bars': g2_errors[:, i],
-                                                             'g2_roi_names': g2_roi_names[i]},
+                                                             # 'g2_roi_names': g2_roi_names[i]
+                                                            },
                                                       timestamps={'g2_curves': t,
                                                                   'g2_tau': t,
                                                                   'g2_error_bars': t,
-                                                                  'g2_roi_names': t})
+                                                                  # 'g2_roi_names': t
+                                                                  })
     t = time.time()
     yield 'event', SAXS_2D_stream_bundle.compose_event(data={'SAXS_2D': SAXS_2D_I},
                                                        timestamps={'SAXS_2D': t})
