@@ -70,7 +70,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         error_height = g2[g2_error_projection_key][i]
         dqlist = g2[dqlist_key]
         # g2_roi_name = g2[g2_roi_names_key].values[i]  # FIXME: talk to Dan about how to properly define string data keys
-        intents_list.append(ErrorBarIntent(name=str(dqlist[i]),  # need str cast here, otherwise is type numpy.str_ (which Qt won't like in its DisplayRole)
+        intents_list.append(ErrorBarIntent(name=f"q={dqlist[i].values[0]:.3}",
                             canvas_name='g₂ vs. τ',
                             match_key='g₂ vs. τ',
                             y=g2_curve,
