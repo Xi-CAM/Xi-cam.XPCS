@@ -5,7 +5,7 @@ from xicam.core.data.bluesky_utils import display_name
 from xicam.SAXS.intents import SAXSImageIntent
 from xicam.core.data import ProjectionNotFound
 from xicam.core.intents import Intent, PlotIntent, ImageIntent, ErrorBarIntent
-from ..ingestors import g2_projection_key, g2_error_projection_key, tau_projection_key, \
+from ..ingestors import g2_projection_key, g2_error_projection_key, tau_projection_key, dqlist_key, \
                         SAXS_2D_I_projection_key, SAXS_1D_I_projection_key, SAXS_1D_Q_projection_key, \
                         SAXS_1D_I_partial_projection_key, raw_data_projection_key
 
@@ -26,12 +26,12 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     g2_field = projection['projection'][g2_projection_key]['field']
     tau_field = projection['projection'][tau_projection_key]['field']
     g2_error_field = projection['projection'][g2_error_projection_key]['field']
-    # g2_roi_name_field = projection['projection'][g2_roi_names_key]['field']
+    dqlist_field = projection['projection'][dqlist_key]['field']
     # Use singly-sourced key name
     g2 = getattr(run_catalog, g2_stream).to_dask().rename({g2_field: g2_projection_key,
-                                                        tau_field: tau_projection_key,
-                                                        g2_error_field: g2_error_projection_key,
-                                                        # g2_roi_name_field: g2_roi_names_key
+                                                           tau_field: tau_projection_key,
+                                                           g2_error_field: g2_error_projection_key,
+                                                           dqlist_field: dqlist_key
                                                            })
 
     SAXS_2D_I_stream = projection['projection'][SAXS_2D_I_projection_key]['stream']
@@ -68,23 +68,17 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
         g2_curve = g2[g2_projection_key][i]
         tau = g2[tau_projection_key][i]
         error_height = g2[g2_error_projection_key][i]
-        # g2_roi_name = g2[g2_roi_names_key][i].values[0]
+        dqlist = g2[dqlist_key]
         # g2_roi_name = g2[g2_roi_names_key].values[i]  # FIXME: talk to Dan about how to properly define string data keys
-        # intents_list.append(PlotIntent(item_name=str(g2_roi_name),  # need str cast here, otherwise is type numpy.str_ (which Qt won't like in its DisplayRole)
-        #                     canvas_name='g₂ vs. τ',
-        #                     match_key='g₂ vs. τ',
-        #                     y=g2_curve,
-        #                     x=tau,
-        #                     xLogMode=True,
-        #                     labels={"left": "g₂", "bottom": "τ"}))
-        intents_list.append(ErrorBarIntent(name='g2',
-                                match_key='g₂ vs. τ',
-                                canvas_name='g₂ vs. τ',
-                                y=g2_curve,
-                                x=tau,
-                                xLogMode=True,
-                                height=error_height,
-                                labels={"left": "g₂", "bottom": "τ"}))
+        intents_list.append(ErrorBarIntent(name=str(dqlist[i]),  # need str cast here, otherwise is type numpy.str_ (which Qt won't like in its DisplayRole)
+                            canvas_name='g₂ vs. τ',
+                            match_key='g₂ vs. τ',
+                            y=g2_curve,
+                            x=tau,
+                            xLogMode=True,
+                            height=error_height,
+                            labels={"left": "g₂", "bottom": "τ"}))
+
 
     #intents_list.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
     intents_list.append(SAXSImageIntent(image=SAXS_2D_I, name="AVG frame {}".format(catalog_name), mixins=("SAXSImageIntentBlend",)), )
