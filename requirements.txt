@@ -1,4 +1,6 @@
 # Dev/Deployment
+xicam
+xicam.SAXS
 sphinx
 sphinx_rtd_theme
 nose
@@ -6,7 +8,6 @@ coverage
 pypi-publisher
 scipy
 scikit-image
-xicam.SAXS
 event-model
 scikit-beam
 
