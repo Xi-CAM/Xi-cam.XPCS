@@ -77,7 +77,8 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                             x=tau,
                             xLogMode=True,
                             height=error_height,
-                            labels={"left": "g₂", "bottom": "τ"}))
+                            labels={"left": "g₂", "bottom": "τ"},
+                            mixins=["ToggleSymbols"]))
 
 
     #intents_list.append(ImageIntent(image=face(True), item_name='SAXS 2D'),)
