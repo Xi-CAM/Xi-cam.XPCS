@@ -1,2 +1,6 @@
+include HISTORY.md
+include LICENSE.md
 include README.md
 include requirements.txt
+recursive-exclude tests
+

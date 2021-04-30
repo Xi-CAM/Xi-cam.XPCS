@@ -15,7 +15,3 @@ pip install xicam.XPCS
 
 For more information about Xi-CAM, see the [main Xi-CAM repository](https://github.com/xi-cam/xi-cam)
 
-## Release Notes
-
-* 1.3.0 - Refactoring; Visualization overhaul, support for FastCCD, 1-time/2-time analysis
-
