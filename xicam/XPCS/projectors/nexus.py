@@ -77,6 +77,7 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
                             x=tau,
                             xLogMode=True,
                             height=error_height,
+                            mixins=["ToggleSymbols"],
                             labels={"left": "g₂", "bottom": "τ"}))
 
 
@@ -85,11 +86,13 @@ def project_nxXPCS(run_catalog: BlueskyRun) -> List[Intent]:
     intents_list.append(PlotIntent(y=SAXS_1D_I[SAXS_1D_I_projection_key],
                         x=SAXS_1D_Q[SAXS_1D_Q_projection_key],
                         labels={"left": "I", "bottom": "Q"},
+                        mixins=["ToggleSymbols"],
                         name='AVG SAXS curve {}'.format(catalog_name)))
 
 
     intents_list.append(PlotIntent(y=SAXS_1D_I_partial, x=SAXS_1D_Q[SAXS_1D_Q_projection_key],
                         labels = {"left": "I", "bottom": "Q"},
+                        mixins=["ToggleSymbols"],
                         name='Stability Plot {}'.format(catalog_name)))
     return intents_list
     # TODO: additionally return intents for masks, rois
